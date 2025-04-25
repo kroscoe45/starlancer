@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 
 export default function Home() {
   return (
-    <div className="flex flex-col items-center justify-center w-full max-w-5xl mx-auto px-4 md:px-0">
+    <div className="flex flex-col items-center justify-center w-full mx-auto px-4 md:px-0">
       <div className="text-center space-y-4 mb-12">
         <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">
           Welcome to Starlancer
@@ -55,7 +55,7 @@ export default function Home() {
             <p className="mb-6 text-sm text-muted-foreground">
               Adjust notification settings, appearance, and AWS credentials.
             </p>
-            <Button variant="outline" asChild className="w-full">
+            <Button variant="ghost" asChild className="w-full">
               <Link to="/settings">Settings</Link>
             </Button>
           </CardContent>

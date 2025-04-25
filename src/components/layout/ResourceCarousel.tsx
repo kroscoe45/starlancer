@@ -32,10 +32,6 @@ export default function ResourceCarousel({
     setCurrentSlide((prev) => (prev === 0 ? slides.length - 1 : prev - 1));
   };
 
-  const goToSlide = (index: number) => {
-    setCurrentSlide(index);
-  };
-
   // Handle touch events for swipe gestures
   const handleTouchStart = (e: React.TouchEvent) => {
     setTouchStart(e.touches[0].clientX);
@@ -85,15 +81,22 @@ export default function ResourceCarousel({
   }, []);
 
   return (
-    <div className={cn("relative w-full", className)}>
+    <div 
+      className={cn(
+        "relative w-full overflow-hidden rounded-xl border", 
+        className
+      )}
+    >
+      {/* Carousel Container */}
       <div
-        className="overflow-hidden rounded-xl"
         ref={carouselRef}
+        className="relative w-full h-[450px] overflow-hidden"
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
       >
+        {/* Slides Container */}
         <div
-          className="flex transition-transform duration-500 ease-in-out"
+          className="absolute top-0 left-0 flex transition-transform duration-500 ease-in-out"
           style={{
             transform: `translateX(-${currentSlide * 100}%)`,
             width: `${slides.length * 100}%`,
@@ -102,19 +105,17 @@ export default function ResourceCarousel({
           {slides.map((slide, index) => (
             <div
               key={slide.id}
-              className="w-full h-full shrink-0"
+              className="w-full h-full shrink-0 p-4"
               style={{ width: `${100 / slides.length}%` }}
               aria-hidden={currentSlide !== index}
             >
-              <div className="h-full p-4">
-                {slide.content}
-              </div>
+              {slide.content}
             </div>
           ))}
         </div>
       </div>
 
-      {/* Navigation buttons */}
+      {/* Navigation Buttons */}
       <div className="absolute inset-y-0 left-0 flex items-center">
         <Button
           variant="ghost"
@@ -140,12 +141,12 @@ export default function ResourceCarousel({
         </Button>
       </div>
 
-      {/* Indicator dots */}
+      {/* Indicator Dots */}
       <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-2">
         {slides.map((slide, index) => (
           <button
             key={`indicator-${slide.id}`}
-            onClick={() => goToSlide(index)}
+            onClick={() => setCurrentSlide(index)}
             className={cn(
               "h-2 rounded-full transition-all",
               index === currentSlide ? "bg-primary w-6" : "bg-primary/30 hover:bg-primary/50 w-2"

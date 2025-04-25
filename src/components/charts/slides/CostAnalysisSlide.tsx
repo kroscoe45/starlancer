@@ -15,7 +15,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowUpRight, ArrowDownRight, DollarSign } from "lucide-react";
 
-// Define types for our cost data
 interface CostDataRecord {
   name: string;
   total: number;
@@ -25,7 +24,7 @@ interface CostDataRecord {
   DynamoDB: number;
   CloudWatch: number;
   SQS: number;
-  [key: string]: number | string; // Index signature for any other properties
+  [key: string]: number | string;
 }
 
 interface CostData {
@@ -33,33 +32,25 @@ interface CostData {
   dailyData: CostDataRecord[];
 }
 
-// Generate mock cost data
 const generateMockCostData = (): CostData => {
-  // Monthly cost data for the past 12 months
   const monthlyData: CostDataRecord[] = [];
   const now = new Date();
   const months = [
     "Jan", "Feb", "Mar", "Apr", "May", "Jun", 
     "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
   ];
-  
-  // Services to track
   const services = ["Lambda", "API Gateway", "S3", "DynamoDB", "CloudWatch", "SQS"];
   
-  // Generate data for each month
   for (let i = 11; i >= 0; i--) {
     const month = new Date(now);
     month.setMonth(now.getMonth() - i);
     
-    // Base monthly cost (slightly increasing trend)
     const baseCost = 800 + (i * 50);
     
-    // Service breakdown with some randomization
     const serviceData: Record<string, number> = {};
     let totalCost = 0;
     
     services.forEach((service) => {
-      // Each service gets a portion of the base cost
       let serviceCost = 0;
       
       switch (service) {
@@ -83,13 +74,11 @@ const generateMockCostData = (): CostData => {
           break;
       }
       
-      // Round to 2 decimal places
       serviceCost = Math.round(serviceCost * 100) / 100;
       serviceData[service] = serviceCost;
       totalCost += serviceCost;
     });
     
-    // Add some seasonal fluctuation
     const seasonalFactor = i % 3 === 0 ? 1.1 : 1;
     totalCost *= seasonalFactor;
     totalCost = Math.round(totalCost * 100) / 100;
@@ -106,18 +95,15 @@ const generateMockCostData = (): CostData => {
     });
   }
   
-  // Generate daily data for current month (last 30 days)
   const dailyData: CostDataRecord[] = [];
   for (let i = 29; i >= 0; i--) {
     const day = new Date();
     day.setDate(day.getDate() - i);
     
-    // Daily fluctuations around the current monthly average
     const currentMonthAvg = monthlyData[monthlyData.length - 1].total / 30;
     const dayFactor = 0.7 + Math.random() * 0.6; // 70-130% of average
     let dayCost = currentMonthAvg * dayFactor;
     
-    // Weekends typically have lower costs
     const isWeekend = day.getDay() === 0 || day.getDay() === 6;
     if (isWeekend) {
       dayCost *= 0.7;
@@ -125,10 +111,8 @@ const generateMockCostData = (): CostData => {
     
     dayCost = Math.round(dayCost * 100) / 100;
     
-    // Service breakdown
     const serviceData: Record<string, number> = {};
     services.forEach((service) => {
-      // Each service gets a portion of the daily cost, similar to monthly breakdown
       const portion = monthlyData[monthlyData.length - 1][service as keyof CostDataRecord] as number / monthlyData[monthlyData.length - 1].total;
       serviceData[service] = Math.round(dayCost * portion * 100) / 100;
     });
@@ -152,12 +136,10 @@ export default function CostAnalysisSlide() {
   const [costData] = useState<CostData>(() => generateMockCostData());
   const [timeRange, setTimeRange] = useState<"daily" | "monthly">("monthly");
   
-  // Get current month total and comparison with previous month
   const currentMonthTotal = costData.monthlyData[costData.monthlyData.length - 1].total;
   const previousMonthTotal = costData.monthlyData[costData.monthlyData.length - 2].total;
   const percentChange = ((currentMonthTotal - previousMonthTotal) / previousMonthTotal) * 100;
   
-  // Format currency
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -167,7 +149,6 @@ export default function CostAnalysisSlide() {
     }).format(value);
   };
   
-  // Get colors from theme
   const getChartColors = () => {
     const rootStyles = getComputedStyle(document.documentElement);
     return {

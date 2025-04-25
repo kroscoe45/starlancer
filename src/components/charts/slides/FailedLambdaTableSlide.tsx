@@ -17,7 +17,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { MoreHorizontal, ArrowUpDown, AlertTriangle, Clock } from "lucide-react";
 
-// Define types for our failure data
 interface FailedLambda {
   id: string;
   functionName: string;
@@ -28,7 +27,6 @@ interface FailedLambda {
   retryCount: number;
 }
 
-// Mock data for failed Lambda functions
 const generateMockFailedLambdas = (): FailedLambda[] => {
   const regions = ["us-east-1", "us-west-2", "eu-west-1", "ap-southeast-1"];
   const functionNames = [
@@ -49,7 +47,6 @@ const generateMockFailedLambdas = (): FailedLambda[] => {
     "Runtime Error"
   ];
   
-  // Generate random date within last 2 weeks
   const getRandomDate = () => {
     const now = new Date();
     const twoWeeksAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
@@ -58,7 +55,6 @@ const generateMockFailedLambdas = (): FailedLambda[] => {
     ).toISOString();
   };
   
-  // Generate 15-25 random failures
   const count = Math.floor(Math.random() * 11) + 15;
   const failures: FailedLambda[] = [];
   
@@ -84,7 +80,6 @@ export default function FailedLambdaTableSlide() {
     direction: 'asc' | 'desc';
   }>({ key: 'timestamp', direction: 'desc' });
   
-  // Handle sorting
   const handleSort = (key: keyof FailedLambda) => {
     setSortConfig({
       key,
@@ -95,7 +90,6 @@ export default function FailedLambdaTableSlide() {
     });
   };
   
-  // Apply sorting
   const sortedFailures = [...failures].sort((a, b) => {
     if (a[sortConfig.key] < b[sortConfig.key]) {
       return sortConfig.direction === 'asc' ? -1 : 1;
@@ -106,7 +100,6 @@ export default function FailedLambdaTableSlide() {
     return 0;
   });
   
-  // Format timestamp
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return new Intl.DateTimeFormat('en-US', { 
@@ -117,23 +110,21 @@ export default function FailedLambdaTableSlide() {
     }).format(date);
   };
   
-  // Format duration
   const formatDuration = (ms: number) => {
     if (ms < 1000) return `${ms}ms`;
     return `${(ms / 1000).toFixed(2)}s`;
   };
   
-  // Get error badge variant - fixing to use only available variants
   const getErrorBadgeVariant = (errorType: string): "default" | "destructive" | "outline" | "secondary" => {
     switch (errorType) {
       case 'Timeout':
-        return 'secondary'; // Instead of 'warning' 
+        return 'secondary';
       case 'Memory Exceeded':
         return 'destructive';
       case 'Permission Denied':
         return 'destructive';
       case 'Dependency Failure':
-        return 'secondary'; // Instead of 'warning'
+        return 'secondary';
       default:
         return 'secondary';
     }

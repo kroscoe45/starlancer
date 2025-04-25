@@ -16,7 +16,7 @@ export default function Header() {
           <Link to="/dashboard">
             <Button 
               variant="ghost" 
-              className="text-foreground hover:bg-secondary/20"
+              className="text-foreground dark:text-foreground hover:bg-secondary/20"
             >
               Dashboard
             </Button>
@@ -24,7 +24,7 @@ export default function Header() {
           <Link to="/settings">
             <Button 
               variant="ghost"
-              className="text-foreground hover:bg-secondary/20"
+              className="text-foreground dark:text-foreground hover:bg-secondary/20"
             >
               Settings
             </Button>

@@ -116,8 +116,8 @@ export default function Dashboard() {
   ];
 
   return (
-    <div className="space-y-8">
-      <div>
+    <div className="space-y-8 w-full">
+      <div className="w-full">
         <h1 className="text-3xl font-bold mb-2">AWS Resources Dashboard</h1>
         <p className="text-muted-foreground">
           Monitor and manage your AWS resources in real-time
@@ -125,14 +125,14 @@ export default function Dashboard() {
       </div>
       
       {/* Resource Carousel - Flexible for new slide types */}
-      <Card className="border-primary/10">
+      <Card className="border-primary/10 w-full">
         <CardHeader className="pb-0">
           <CardTitle>Resource Monitoring</CardTitle>
           <CardDescription>
             Navigate through different resource metrics and visualizations
           </CardDescription>
         </CardHeader>
-        <CardContent className="pt-2 pb-6 px-2 md:px-4">
+        <CardContent className="pt-2 pb-6 px-2 md:px-4 w-full">
           <ResourceCarousel slides={carouselSlides} />
         </CardContent>
       </Card>
