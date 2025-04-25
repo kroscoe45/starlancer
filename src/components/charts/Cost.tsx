@@ -14,6 +14,11 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowUpRight, ArrowDownRight, DollarSign } from "lucide-react";
+import {
+  ResizablePanel,
+  ResizablePanelGroup,
+  ResizableHandle,
+} from "@/components/ui/resizable";
 
 interface CostDataRecord {
   name: string;
@@ -243,167 +248,185 @@ export function CostAnalysis() {
           </Tabs>
         </div>
       </div>
+      <ResizablePanelGroup direction="vertical">
+        <ResizablePanel>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <ResizablePanelGroup direction="horizontal">
+              <ResizablePanel>
+                <Card className="md:col-span-2">
+                  <CardHeader className="p-4 pb-0">
+                    <CardTitle className="text-base font-medium">
+                      {timeRange === "monthly"
+                        ? "Monthly Cost Trend"
+                        : "Daily Cost Trend"}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-0 pt-2">
+                    <div className="h-[250px] w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart
+                          data={
+                            timeRange === "monthly"
+                              ? costData.monthlyData
+                              : costData.dailyData
+                          }
+                          margin={{ top: 20, right: 20, left: 10, bottom: 10 }}
+                        >
+                          <CartesianGrid
+                            strokeDasharray="3 3"
+                            stroke={chartColors.gridLines}
+                          />
+                          <XAxis
+                            dataKey="name"
+                            tick={{ fill: chartColors.text, fontSize: 10 }}
+                            stroke={chartColors.gridLines}
+                          />
+                          <YAxis
+                            tickFormatter={(value) => `$${value}`}
+                            tick={{ fill: chartColors.text, fontSize: 10 }}
+                            stroke={chartColors.gridLines}
+                          />
+                          <Tooltip
+                            formatter={(value) => [
+                              formatCurrency(value as number),
+                              "Cost",
+                            ]}
+                            labelFormatter={(label) =>
+                              timeRange === "monthly"
+                                ? `${label}`
+                                : `Day ${label}`
+                            }
+                          />
+                          <Line
+                            type="monotone"
+                            dataKey="total"
+                            name="Total Cost"
+                            stroke={chartColors.lambda}
+                            activeDot={{ r: 6 }}
+                            strokeWidth={2}
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </CardContent>
+                </Card>
+              </ResizablePanel>
+              <Card>
+                <CardHeader className="p-4 pb-0">
+                  <CardTitle className="text-base font-medium">
+                    Service Breakdown
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-0 pt-2">
+                  <div className="h-[250px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart
+                        data={[
+                          timeRange === "monthly"
+                            ? costData.monthlyData[
+                                costData.monthlyData.length - 1
+                              ]
+                            : {
+                                name: "Current",
+                                total: costData.dailyData.reduce(
+                                  (sum, day) => sum + day.total,
+                                  0,
+                                ),
+                                Lambda: costData.dailyData.reduce(
+                                  (sum, day) => sum + day.Lambda,
+                                  0,
+                                ),
+                                "API Gateway": costData.dailyData.reduce(
+                                  (sum, day) => sum + day["API Gateway"],
+                                  0,
+                                ),
+                                S3: costData.dailyData.reduce(
+                                  (sum, day) => sum + day.S3,
+                                  0,
+                                ),
+                                DynamoDB: costData.dailyData.reduce(
+                                  (sum, day) => sum + day.DynamoDB,
+                                  0,
+                                ),
+                                CloudWatch: costData.dailyData.reduce(
+                                  (sum, day) => sum + day.CloudWatch,
+                                  0,
+                                ),
+                                SQS: costData.dailyData.reduce(
+                                  (sum, day) => sum + day.SQS,
+                                  0,
+                                ),
+                              },
+                        ]}
+                        layout="vertical"
+                        margin={{ top: 20, right: 30, left: 60, bottom: 10 }}
+                      >
+                        <CartesianGrid
+                          strokeDasharray="3 3"
+                          stroke={chartColors.gridLines}
+                        />
+                        <XAxis
+                          type="number"
+                          tickFormatter={(value) => `$${value}`}
+                          tick={{ fill: chartColors.text, fontSize: 10 }}
+                          stroke={chartColors.gridLines}
+                        />
+                        <YAxis
+                          type="category"
+                          dataKey="name"
+                          hide
+                          tick={{ fill: chartColors.text, fontSize: 10 }}
+                          stroke={chartColors.gridLines}
+                        />
+                        <Tooltip
+                          formatter={(value) => [
+                            formatCurrency(value as number),
+                            "",
+                          ]}
+                        />
+                        <Legend
+                          verticalAlign="bottom"
+                          formatter={(value) => (
+                            <span style={{ fontSize: "10px" }}>{value}</span>
+                          )}
+                        />
+                        <Bar
+                          dataKey="Lambda"
+                          fill={chartColors.lambda}
+                          name="Lambda"
+                        />
+                        <Bar
+                          dataKey="API Gateway"
+                          fill={chartColors.apiGateway}
+                          name="API Gateway"
+                        />
+                        <Bar dataKey="S3" fill={chartColors.s3} name="S3" />
+                        <Bar
+                          dataKey="DynamoDB"
+                          fill={chartColors.dynamodb}
+                          name="DynamoDB"
+                        />
+                        <Bar
+                          dataKey="CloudWatch"
+                          fill={chartColors.cloudwatch}
+                          name="CloudWatch"
+                        />
+                        <Bar dataKey="SQS" fill={chartColors.sqs} name="SQS" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
+            </ResizablePanelGroup>
+          </div>
+        </ResizablePanel>
+        <ResizablePanel>
+          <CostAnalysis />
+        </ResizablePanel>
+        <ResizableHandle />
+      </ResizablePanelGroup>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-        <Card className="md:col-span-2">
-          <CardHeader className="p-4 pb-0">
-            <CardTitle className="text-base font-medium">
-              {timeRange === "monthly"
-                ? "Monthly Cost Trend"
-                : "Daily Cost Trend"}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0 pt-2">
-            <div className="h-[250px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart
-                  data={
-                    timeRange === "monthly"
-                      ? costData.monthlyData
-                      : costData.dailyData
-                  }
-                  margin={{ top: 20, right: 20, left: 10, bottom: 10 }}
-                >
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    stroke={chartColors.gridLines}
-                  />
-                  <XAxis
-                    dataKey="name"
-                    tick={{ fill: chartColors.text, fontSize: 10 }}
-                    stroke={chartColors.gridLines}
-                  />
-                  <YAxis
-                    tickFormatter={(value) => `$${value}`}
-                    tick={{ fill: chartColors.text, fontSize: 10 }}
-                    stroke={chartColors.gridLines}
-                  />
-                  <Tooltip
-                    formatter={(value) => [
-                      formatCurrency(value as number),
-                      "Cost",
-                    ]}
-                    labelFormatter={(label) =>
-                      timeRange === "monthly" ? `${label}` : `Day ${label}`
-                    }
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="total"
-                    name="Total Cost"
-                    stroke={chartColors.lambda}
-                    activeDot={{ r: 6 }}
-                    strokeWidth={2}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="p-4 pb-0">
-            <CardTitle className="text-base font-medium">
-              Service Breakdown
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0 pt-2">
-            <div className="h-[250px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={[
-                    timeRange === "monthly"
-                      ? costData.monthlyData[costData.monthlyData.length - 1]
-                      : {
-                          name: "Current",
-                          total: costData.dailyData.reduce(
-                            (sum, day) => sum + day.total,
-                            0,
-                          ),
-                          Lambda: costData.dailyData.reduce(
-                            (sum, day) => sum + day.Lambda,
-                            0,
-                          ),
-                          "API Gateway": costData.dailyData.reduce(
-                            (sum, day) => sum + day["API Gateway"],
-                            0,
-                          ),
-                          S3: costData.dailyData.reduce(
-                            (sum, day) => sum + day.S3,
-                            0,
-                          ),
-                          DynamoDB: costData.dailyData.reduce(
-                            (sum, day) => sum + day.DynamoDB,
-                            0,
-                          ),
-                          CloudWatch: costData.dailyData.reduce(
-                            (sum, day) => sum + day.CloudWatch,
-                            0,
-                          ),
-                          SQS: costData.dailyData.reduce(
-                            (sum, day) => sum + day.SQS,
-                            0,
-                          ),
-                        },
-                  ]}
-                  layout="vertical"
-                  margin={{ top: 20, right: 30, left: 60, bottom: 10 }}
-                >
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    stroke={chartColors.gridLines}
-                  />
-                  <XAxis
-                    type="number"
-                    tickFormatter={(value) => `$${value}`}
-                    tick={{ fill: chartColors.text, fontSize: 10 }}
-                    stroke={chartColors.gridLines}
-                  />
-                  <YAxis
-                    type="category"
-                    dataKey="name"
-                    hide
-                    tick={{ fill: chartColors.text, fontSize: 10 }}
-                    stroke={chartColors.gridLines}
-                  />
-                  <Tooltip
-                    formatter={(value) => [formatCurrency(value as number), ""]}
-                  />
-                  <Legend
-                    verticalAlign="bottom"
-                    formatter={(value) => (
-                      <span style={{ fontSize: "10px" }}>{value}</span>
-                    )}
-                  />
-                  <Bar
-                    dataKey="Lambda"
-                    fill={chartColors.lambda}
-                    name="Lambda"
-                  />
-                  <Bar
-                    dataKey="API Gateway"
-                    fill={chartColors.apiGateway}
-                    name="API Gateway"
-                  />
-                  <Bar dataKey="S3" fill={chartColors.s3} name="S3" />
-                  <Bar
-                    dataKey="DynamoDB"
-                    fill={chartColors.dynamodb}
-                    name="DynamoDB"
-                  />
-                  <Bar
-                    dataKey="CloudWatch"
-                    fill={chartColors.cloudwatch}
-                    name="CloudWatch"
-                  />
-                  <Bar dataKey="SQS" fill={chartColors.sqs} name="SQS" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
+      {/* VERTICAL */}
       <Card>
         <CardHeader className="p-4 pb-2">
           <CardTitle className="text-base font-medium">

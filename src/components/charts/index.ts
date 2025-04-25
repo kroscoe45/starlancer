@@ -1,4 +1,4 @@
 export { CostAnalysis } from './Cost';
-export { LambdaStatusTable } from './Lambda';
+export { LambdaStatusTable } from './LambdaStatusTable';
 export { ResourceUsageChart } from './ResourceUsage'
 export { HealthMonitor } from './ServiceHealth';

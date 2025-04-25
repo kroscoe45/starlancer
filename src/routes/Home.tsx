@@ -8,8 +8,8 @@ import {
 import {
   CostAnalysis,
   LambdaStatusTable,
-  ResourceUsageChart,
-  HealthMonitor,
+  //ResourceUsageChart,
+  //HealthMonitor,
 } from "@/components/charts";
 import {
   Card,
@@ -27,7 +27,9 @@ export default function Home() {
           <CostAnalysis />
         </ResizablePanel>
         <ResizableHandle />
-        <ResizablePanel>Two</ResizablePanel>
+        <ResizablePanel>
+          <LambdaStatusTable />
+        </ResizablePanel>
       </ResizablePanelGroup>
       <Card className="bg-card/60 border border-primary/10 hover:border-primary/20 transition-colors">
         <CardHeader>
