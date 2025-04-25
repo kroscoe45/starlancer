@@ -1,7 +1,17 @@
 import { useSearchParams } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import AwsMetricsChart from "@/components/charts/AwsMetricsChart";
 import ResourceCard from "@/components/aws/ResourceCard";
+import ResourceCarousel from "@/components/layout/ResourceCarousel";
+
+// Import slide components individually (or use the index file if you have it set up)
+import { 
+  ResourceUsageChartSlide, 
+  ServiceHealthSlide, 
+  FailedLambdaTableSlide, 
+  CostAnalysisSlide
+} from "@/components/charts/slides"
 
 // Mock data for resources - in a real app this would come from an API
 const resources = [
@@ -81,15 +91,53 @@ export default function Dashboard() {
     ? resources
     : resources.filter(r => r.resourceType.toLowerCase().includes(activeService.toLowerCase()));
 
+  // Define carousel slides
+  const carouselSlides = [
+    {
+      id: "resource-usage",
+      title: "Resource Usage",
+      content: <ResourceUsageChartSlide />
+    },
+    {
+      id: "service-health",
+      title: "Service Health",
+      content: <ServiceHealthSlide />
+    },
+    {
+      id: "failed-lambdas",
+      title: "Failed Lambda Functions",
+      content: <FailedLambdaTableSlide />
+    },
+    {
+      id: "cost-analysis",
+      title: "Cost Analysis",
+      content: <CostAnalysisSlide />
+    }
+  ];
+
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-3xl font-bold mb-2">Lambda Functions Dashboard</h1>
+        <h1 className="text-3xl font-bold mb-2">AWS Resources Dashboard</h1>
         <p className="text-muted-foreground">
           Monitor and manage your AWS resources in real-time
         </p>
       </div>
       
+      {/* Resource Carousel - Flexible for new slide types */}
+      <Card className="border-primary/10">
+        <CardHeader className="pb-0">
+          <CardTitle>Resource Monitoring</CardTitle>
+          <CardDescription>
+            Navigate through different resource metrics and visualizations
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="pt-2 pb-6 px-2 md:px-4">
+          <ResourceCarousel slides={carouselSlides} />
+        </CardContent>
+      </Card>
+      
+      {/* Service Tabs - Existing functionality */}
       <Tabs defaultValue={activeService} className="w-full">
         <TabsList className="mb-6 w-full justify-start bg-card">
           <TabsTrigger value="all">All Services</TabsTrigger>
