@@ -1,204 +1,130 @@
-import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import AwsMetricsChart from "@/components/charts/AwsMetricsChart";
 import ResourceCard from "@/components/aws/ResourceCard";
-import ResourceTable from "@/components/aws/ResourceTable";
-import ResourceConfig from "@/components/aws/ResourceConfig";
-import { awsService, Resource, ResourceStatus } from "@/lib/aws-service";
-import { toast } from "sonner";
 
-// AWS service dashboard configurations
-const dashboardData = {
-  lambda: {
-    title: "Lambda Functions",
-    metrics: ["Invocations", "Errors", "Duration", "Throttles"],
-    metricNames: ["invocations", "errors", "duration", "throttles"],
+// Mock data for resources - in a real app this would come from an API
+const resources = [
+  {
+    id: "order-processing",
+    title: "order-processing",
+    resourceType: "Lambda",
+    resourceId: "lambda-1",
+    status: "healthy" as const,
+    metrics: {
+      invocations: 15,
+      invocationsChange: 12,
+      errors: 5,
+      errorsChange: -5,
+    },
   },
-  sqs: {
-    title: "SQS Queues",
-    metrics: ["Messages Available", "Messages In Flight", "Age of Oldest Message"],
-    metricNames: ["messagesAvailable", "messagesInFlight", "oldestMessageAge"],
+  {
+    id: "payment-service",
+    title: "payment-service",
+    resourceType: "Lambda",
+    resourceId: "lambda-2",
+    status: "healthy" as const,
+    metrics: {
+      invocations: 23,
+      invocationsChange: 8,
+      errors: 2,
+      errorsChange: -15,
+    },
   },
-  apigateway: {
-    title: "API Gateway",
-    metrics: ["Requests", "Latency", "4XX Errors", "5XX Errors"],
-    metricNames: ["requests", "latency", "4xxErrors", "5xxErrors"],
+  {
+    id: "inventory-queue",
+    title: "inventory-queue",
+    resourceType: "SQS",
+    resourceId: "sqs-1",
+    status: "healthy" as const,
+    metrics: {
+      invocations: 47,
+      invocationsChange: 5,
+      errors: 0,
+      errorsChange: 0,
+    },
   },
-  dynamodb: {
-    title: "DynamoDB",
-    metrics: ["Read Capacity", "Write Capacity", "Throttled Requests", "System Errors"],
-    metricNames: ["readCapacity", "writeCapacity", "throttledRequests", "systemErrors"],
+  {
+    id: "user-api",
+    title: "user-api",
+    resourceType: "API GW",
+    resourceId: "api-1",
+    status: "warning" as const,
+    metrics: {
+      invocations: 108,
+      invocationsChange: 22,
+      errors: 12,
+      errorsChange: 15,
+    },
   },
-  cloudwatch: {
-    title: "CloudWatch",
-    metrics: ["Alarms", "Logs", "Events", "Metrics"],
-    metricNames: ["alarms", "logs", "events", "metrics"],
+  {
+    id: "products-table",
+    title: "products-table",
+    resourceType: "DynamoDB",
+    resourceId: "ddb-1",
+    status: "healthy" as const,
+    metrics: {
+      invocations: 87,
+      invocationsChange: 3,
+      errors: 1,
+      errorsChange: -10,
+    },
   },
-};
+];
 
 export default function Dashboard() {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const serviceParam = searchParams.get("service") || "lambda";
-  const service = dashboardData[serviceParam as keyof typeof dashboardData] || dashboardData.lambda;
+  const [searchParams] = useSearchParams();
+  const activeService = searchParams.get("service") || "all";
   
-  const [loading, setLoading] = useState(true);
-  const [resources, setResources] = useState<Resource[]>([]);
-  const [selectedResource, setSelectedResource] = useState<Resource | null>(null);
-  
-  // Load resources on component mount and when service changes
-  useEffect(() => {
-    const fetchResources = async () => {
-      setLoading(true);
-      try {
-        const allResources = await awsService.getResources();
-        const filteredResources = allResources.filter(
-          r => r.type.toLowerCase() === serviceParam.toLowerCase()
-        );
-        setResources(filteredResources);
-        
-        // Select the first resource by default
-        if (filteredResources.length > 0 && !selectedResource) {
-          setSelectedResource(filteredResources[0]);
-        }
-      } catch (error) {
-        console.error("Error fetching resources:", error);
-        toast.error("Failed to load resources");
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    fetchResources();
-  }, [serviceParam]);
-  
-  // Handle service tab change
-  const handleServiceChange = (value: string) => {
-    setSearchParams({ service: value });
-    setSelectedResource(null);
-  };
-  
-  // Handle resource selection
-  const handleResourceSelect = (resource: Resource) => {
-    setSelectedResource(resource);
-  };
+  // Filter resources based on active service
+  const filteredResources = activeService === "all"
+    ? resources
+    : resources.filter(r => r.resourceType.toLowerCase().includes(activeService.toLowerCase()));
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <h1 className="text-3xl font-bold">{service.title} Dashboard</h1>
-        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
-          <Tabs value={serviceParam} onValueChange={handleServiceChange} className="w-full md:w-auto">
-            <TabsList className="grid grid-cols-5">
-              <TabsTrigger value="lambda">Lambda</TabsTrigger>
-              <TabsTrigger value="sqs">SQS</TabsTrigger>
-              <TabsTrigger value="apigateway">API GW</TabsTrigger>
-              <TabsTrigger value="dynamodb">DynamoDB</TabsTrigger>
-              <TabsTrigger value="cloudwatch">CloudWatch</TabsTrigger>
-            </TabsList>
-          </Tabs>
-          
-          <ResourceConfig onConfigSave={(config) => {
-            toast.success(`Added ${config.name} to monitoring`);
-          }}>
-            <Button>Add Resource</Button>
-          </ResourceConfig>
-        </div>
+    <div className="space-y-8">
+      <div>
+        <h1 className="text-3xl font-bold mb-2">Lambda Functions Dashboard</h1>
+        <p className="text-muted-foreground">
+          Monitor and manage your AWS resources in real-time
+        </p>
       </div>
-
-      {/* Resource Cards */}
-      {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[1, 2, 3, 4].map((i) => (
-            <Card key={i}>
-              <CardHeader className="pb-2">
-                <Skeleton className="h-5 w-40" />
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  <Skeleton className="h-8 w-full" />
-                  <Skeleton className="h-8 w-full" />
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      ) : resources.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {resources.map((resource) => (
-            <ResourceCard
-              key={resource.id}
-              title={resource.name}
-              resourceType={resource.type}
-              resourceId={resource.id}
-              status={resource.status as ResourceStatus}
-              metrics={[
-                {
-                  name: service.metrics[0],
-                  value: Math.floor(Math.random() * 100),
-                  change: "+12%",
-                  trend: "up",
-                },
-                {
-                  name: service.metrics[1],
-                  value: Math.floor(Math.random() * 10),
-                  change: "-5%",
-                  trend: "down",
-                },
-              ]}
-            />
-          ))}
-        </div>
-      ) : (
-        <div className="bg-card/30 border rounded-lg p-8 text-center">
-          <h3 className="text-lg font-semibold mb-2">No {service.title} Configured</h3>
-          <p className="text-muted-foreground mb-4">
-            You haven't added any {service.title.toLowerCase()} to monitor yet.
-          </p>
-          <ResourceConfig>
-            <Button>Add Your First {service.title.slice(0, -1)}</Button>
-          </ResourceConfig>
-        </div>
-      )}
-
-      {/* Detailed chart and table section */}
-      {resources.length > 0 && (
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-          <Card className="xl:col-span-2">
-            <CardHeader>
-              <CardTitle>Performance Overview</CardTitle>
-              <CardDescription>
-                Real-time metrics for your {service.title}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
+      
+      <Tabs defaultValue={activeService} className="w-full">
+        <TabsList className="mb-6 w-full justify-start bg-card">
+          <TabsTrigger value="all">All Services</TabsTrigger>
+          <TabsTrigger value="lambda">Lambda</TabsTrigger>
+          <TabsTrigger value="sqs">SQS</TabsTrigger>
+          <TabsTrigger value="api">API GW</TabsTrigger>
+          <TabsTrigger value="dynamodb">DynamoDB</TabsTrigger>
+          <TabsTrigger value="cloudwatch">CloudWatch</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value={activeService} className="mt-0">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredResources.map((resource) => (
+              <ResourceCard
+                key={resource.id}
+                title={resource.title}
+                resourceType={resource.resourceType}
+                resourceId={resource.resourceId}
+                status={resource.status}
+                metrics={resource.metrics}
+              />
+            ))}
+          </div>
+          
+          {filteredResources.length > 0 && (
+            <div className="mt-8">
               <AwsMetricsChart 
-                title={service.title}
-                resourceType={serviceParam as any}
-                resourceName={selectedResource?.name}
+                title="Resource Metrics (Last 7 Days)"
+                resourceType={filteredResources[0].resourceType.toLowerCase() as any}
+                resourceName={filteredResources.length === 1 ? filteredResources[0].title : "All Resources"}
               />
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Resource List</CardTitle>
-              <CardDescription>
-                All monitored {service.title}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ResourceTable 
-                resources={resources}
-                onResourceSelect={handleResourceSelect}
-              />
-            </CardContent>
-          </Card>
-        </div>
-      )}
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
