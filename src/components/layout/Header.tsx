@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { NavigationMenu, NavigationMenuContent, NavigationMenuItem, NavigationMenuLink, NavigationMenuList, NavigationMenuTrigger } from "@/components/ui/navigation-menu";
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 export default function Header() {
   return (
@@ -18,11 +19,11 @@ export default function Header() {
                   <NavigationMenuContent>
                     <div className="grid gap-3 p-4 w-[400px]">
                       <NavigationMenuLink asChild>
-                        <Link to="/dashboard" className="flex h-full w-full select-none flex-col justify-end rounded-md bg-gradient-to-b from-slate-50 to-slate-100 p-6 no-underline outline-none hover:bg-slate-100 dark:from-slate-800 dark:to-slate-900 dark:hover:bg-slate-800">
+                        <Link to="/dashboard" className="flex h-full w-full select-none flex-col justify-end rounded-md bg-secondary/50 p-6 no-underline outline-none hover:bg-secondary dark:bg-secondary/20 dark:hover:bg-secondary/30">
                           <div className="mb-2 mt-4 text-lg font-medium">
                             Dashboard
                           </div>
-                          <p className="text-sm leading-tight text-slate-600 dark:text-slate-400">
+                          <p className="text-sm leading-tight text-muted-foreground">
                             Monitor all your AWS resources in real-time
                           </p>
                         </Link>
@@ -40,6 +41,7 @@ export default function Header() {
               </NavigationMenuList>
             </NavigationMenu>
           </div>
+          <ThemeToggle />
         </div>
       </div>
     </header>

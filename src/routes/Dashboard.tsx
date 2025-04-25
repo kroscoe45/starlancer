@@ -153,9 +153,9 @@ export default function Dashboard() {
           ))}
         </div>
       ) : (
-        <div className="bg-slate-50 dark:bg-slate-800 border rounded-lg p-8 text-center">
+        <div className="bg-card/30 border rounded-lg p-8 text-center">
           <h3 className="text-lg font-semibold mb-2">No {service.title} Configured</h3>
-          <p className="text-slate-500 dark:text-slate-400 mb-4">
+          <p className="text-muted-foreground mb-4">
             You haven't added any {service.title.toLowerCase()} to monitor yet.
           </p>
           <ResourceConfig>

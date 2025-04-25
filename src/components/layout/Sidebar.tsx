@@ -13,7 +13,7 @@ const awsServices = [
 
 export default function Sidebar() {
   return (
-    <div className="w-64 border-r bg-slate-100/40 dark:bg-slate-800/40 flex flex-col overflow-y-auto">
+    <div className="w-64 border-r border-border/50 bg-card/30 dark:bg-card/10 flex flex-col overflow-y-auto">
       <div className="p-4">
         <h2 className="font-medium text-lg mb-4">AWS Services</h2>
         <div className="space-y-1">
@@ -34,7 +34,7 @@ export default function Sidebar() {
           ))}
         </div>
       </div>
-      <div className="mt-auto p-4 border-t">
+      <div className="mt-auto p-4 border-t border-border/50">
         <Button variant="outline" className="w-full" asChild>
           <Link to="/settings" className="flex items-center justify-center">
             Add New Resource

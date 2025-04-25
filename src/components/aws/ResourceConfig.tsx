@@ -1,9 +1,18 @@
 import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
+import {
+  Sheet,
+  SheetClose,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 
 type ResourceConfigFormValues = {
   resourceType?: string;
@@ -43,17 +52,17 @@ export default function ResourceConfig({ onConfigSave, children }: ResourceConfi
   };
 
   return (
-    <Dialog>
-      <DialogTrigger asChild>
+    <Sheet>
+      <SheetTrigger asChild>
         {children || <Button variant="outline">Add New Resource</Button>}
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-[550px]">
-        <DialogHeader>
-          <DialogTitle>Add AWS Resource</DialogTitle>
-          <DialogDescription>
+      </SheetTrigger>
+      <SheetContent>
+        <SheetHeader>
+          <SheetTitle>Add AWS Resource</SheetTitle>
+          <SheetDescription>
             Configure a new AWS resource to monitor. This will add the resource to your dashboard.
-          </DialogDescription>
-        </DialogHeader>
+          </SheetDescription>
+        </SheetHeader>
         
         <Form {...form}>
           <form className="grid gap-4 py-4">
@@ -140,11 +149,15 @@ export default function ResourceConfig({ onConfigSave, children }: ResourceConfi
           </form>
         </Form>
         
-        <DialogFooter>
-          <Button variant="outline">Cancel</Button>
-          <Button onClick={handleSaveConfig}>Add Resource</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        <SheetFooter className="pt-4">
+          <SheetClose asChild>
+            <Button variant="outline">Cancel</Button>
+          </SheetClose>
+          <SheetClose asChild>
+            <Button onClick={handleSaveConfig}>Add Resource</Button>
+          </SheetClose>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   );
 }

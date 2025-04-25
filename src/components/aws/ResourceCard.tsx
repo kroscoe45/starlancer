@@ -23,16 +23,23 @@ export default function ResourceCard({
   status,
   metrics,
 }: ResourceCardProps) {
+  // Status colors using shadcn/ui colors
   const statusColor = {
-    healthy: "bg-green-500",
-    warning: "bg-amber-500",
-    error: "bg-red-500",
+    healthy: "bg-green-500 text-green-50",
+    warning: "bg-amber-500 text-amber-50",
+    error: "bg-red-500 text-red-50",
+  };
+
+  const statusVariant = {
+    healthy: "outline",
+    warning: "secondary",
+    error: "destructive",
   };
 
   const trendColor = {
-    up: "text-green-500",
-    down: "text-red-500",
-    stable: "text-slate-500",
+    up: "text-green-500 dark:text-green-400",
+    down: "text-red-500 dark:text-red-400",
+    stable: "text-muted-foreground",
   };
 
   const trendArrow = {
@@ -53,7 +60,7 @@ export default function ResourceCard({
           </div>
           <div className="flex items-center space-x-2">
             <div className={`h-3 w-3 rounded-full ${statusColor[status]}`} />
-            <Badge variant={status === 'healthy' ? 'outline' : 'secondary'}>
+            <Badge variant={statusVariant[status] as "outline" | "secondary" | "destructive"}>
               {status.charAt(0).toUpperCase() + status.slice(1)}
             </Badge>
           </div>
