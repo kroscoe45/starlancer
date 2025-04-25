@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import Home from "@/routes/Home";
-import Dashboard from "@/routes/Dashboard";
+import Dashboard from "@/routes/Monitor";
 import Settings from "@/routes/Settings";
 
 const router = createBrowserRouter([
