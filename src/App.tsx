@@ -1,9 +1,7 @@
 import { Toaster } from "@/components/ui/sonner";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import DashboardLayout from "@/components/layout/DashboardLayout";
-import Home from "@/routes/Home";
-import Dashboard from "@/routes/Monitor";
-import Settings from "@/routes/Settings";
+import { Home, Monitor, Settings } from "@/routes";
 
 const router = createBrowserRouter([
   {
@@ -15,8 +13,8 @@ const router = createBrowserRouter([
         element: <Home />,
       },
       {
-        path: "dashboard",
-        element: <Dashboard />,
+        path: "monitor",
+        element: <Monitor />,
       },
       {
         path: "settings",

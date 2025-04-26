@@ -7,7 +7,7 @@ import {
 } from "@/components/ui/carousel";
 import { Card, CardContent } from "@/components/ui/card";
 
-export default function Dashboard() {
+const Monitor = () => {
   return (
     <div className="space-y-8 w-full">
       <div className="border-primary/10 w-full">
@@ -33,4 +33,6 @@ export default function Dashboard() {
       </div>
     </div>
   );
-}
+};
+
+export { Monitor };

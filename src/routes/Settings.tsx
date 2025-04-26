@@ -1,9 +1,30 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 
@@ -14,7 +35,7 @@ type SettingsFormValues = {
   alertThreshold?: string;
 };
 
-export default function Settings() {
+const Settings = () => {
   const [activeTab, setActiveTab] = useState("aws");
 
   const awsForm = useForm<SettingsFormValues>({
@@ -44,14 +65,18 @@ export default function Settings() {
   return (
     <div className="max-w-4xl mx-auto">
       <h1 className="text-3xl font-bold mb-6">Settings</h1>
-      
-      <Tabs defaultValue={activeTab} onValueChange={setActiveTab} className="w-full">
+
+      <Tabs
+        defaultValue={activeTab}
+        onValueChange={setActiveTab}
+        className="w-full"
+      >
         <TabsList className="grid grid-cols-3">
           <TabsTrigger value="aws">AWS Configuration</TabsTrigger>
           <TabsTrigger value="display">Display</TabsTrigger>
           <TabsTrigger value="notifications">Notifications</TabsTrigger>
         </TabsList>
-        
+
         <TabsContent value="aws">
           <Card>
             <CardHeader>
@@ -69,20 +94,37 @@ export default function Settings() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>AWS Region</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <Select
+                          onValueChange={field.onChange}
+                          defaultValue={field.value}
+                        >
                           <FormControl>
                             <SelectTrigger>
                               <SelectValue placeholder="Select AWS Region" />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value="us-east-1">US East (N. Virginia)</SelectItem>
-                            <SelectItem value="us-east-2">US East (Ohio)</SelectItem>
-                            <SelectItem value="us-west-1">US West (N. California)</SelectItem>
-                            <SelectItem value="us-west-2">US West (Oregon)</SelectItem>
-                            <SelectItem value="eu-west-1">EU (Ireland)</SelectItem>
-                            <SelectItem value="eu-central-1">EU (Frankfurt)</SelectItem>
-                            <SelectItem value="ap-northeast-1">Asia Pacific (Tokyo)</SelectItem>
+                            <SelectItem value="us-east-1">
+                              US East (N. Virginia)
+                            </SelectItem>
+                            <SelectItem value="us-east-2">
+                              US East (Ohio)
+                            </SelectItem>
+                            <SelectItem value="us-west-1">
+                              US West (N. California)
+                            </SelectItem>
+                            <SelectItem value="us-west-2">
+                              US West (Oregon)
+                            </SelectItem>
+                            <SelectItem value="eu-west-1">
+                              EU (Ireland)
+                            </SelectItem>
+                            <SelectItem value="eu-central-1">
+                              EU (Frankfurt)
+                            </SelectItem>
+                            <SelectItem value="ap-northeast-1">
+                              Asia Pacific (Tokyo)
+                            </SelectItem>
                           </SelectContent>
                         </Select>
                         <FormDescription>
@@ -92,14 +134,17 @@ export default function Settings() {
                       </FormItem>
                     )}
                   />
-                  
+
                   <FormField
                     control={awsForm.control}
                     name="refresh"
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Refresh Rate</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <Select
+                          onValueChange={field.onChange}
+                          defaultValue={field.value}
+                        >
                           <FormControl>
                             <SelectTrigger>
                               <SelectValue placeholder="Select refresh interval" />
@@ -128,7 +173,7 @@ export default function Settings() {
             </CardFooter>
           </Card>
         </TabsContent>
-        
+
         <TabsContent value="display">
           <Card>
             <CardHeader>
@@ -146,7 +191,10 @@ export default function Settings() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Theme</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <Select
+                          onValueChange={field.onChange}
+                          defaultValue={field.value}
+                        >
                           <FormControl>
                             <SelectTrigger>
                               <SelectValue placeholder="Select theme" />
@@ -174,7 +222,7 @@ export default function Settings() {
             </CardFooter>
           </Card>
         </TabsContent>
-        
+
         <TabsContent value="notifications">
           <Card>
             <CardHeader>
@@ -192,16 +240,25 @@ export default function Settings() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Alert Threshold</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <Select
+                          onValueChange={field.onChange}
+                          defaultValue={field.value}
+                        >
                           <FormControl>
                             <SelectTrigger>
                               <SelectValue placeholder="Select alert threshold" />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value="critical">Critical Only</SelectItem>
-                            <SelectItem value="warning">Warning & Critical</SelectItem>
-                            <SelectItem value="info">All (Info, Warning, Critical)</SelectItem>
+                            <SelectItem value="critical">
+                              Critical Only
+                            </SelectItem>
+                            <SelectItem value="warning">
+                              Warning & Critical
+                            </SelectItem>
+                            <SelectItem value="info">
+                              All (Info, Warning, Critical)
+                            </SelectItem>
                           </SelectContent>
                         </Select>
                         <FormDescription>
@@ -223,4 +280,6 @@ export default function Settings() {
       </Tabs>
     </div>
   );
-}
+};
+
+export { Settings };
