@@ -33,7 +33,7 @@ interface FailedLambda {
 }
 
 const generateMockFailedLambdas = (): FailedLambda[] => {
-  const regions = ["us-east-1", "us-west-2", "eu-west-1", "ap-southeast-1"];
+  const regions = ["us-west-2"];
   const functionNames = [
     "order-processing",
     "payment-service",

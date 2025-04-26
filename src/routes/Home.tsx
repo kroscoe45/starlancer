@@ -1,16 +1,20 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+/*
 import {
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
+
 import {
   CostAnalysis,
   LambdaStatusTable,
   //ResourceUsageChart,
   //HealthMonitor,
 } from "@/components/charts";
+*/
+
 import {
   Card,
   CardContent,
@@ -21,16 +25,7 @@ import {
 
 export default function Home() {
   return (
-    <div>
-      <ResizablePanelGroup direction="horizontal">
-        <ResizablePanel>
-          <CostAnalysis />
-        </ResizablePanel>
-        <ResizableHandle />
-        <ResizablePanel>
-          <LambdaStatusTable />
-        </ResizablePanel>
-      </ResizablePanelGroup>
+    <div className="space-y-8 w-full">
       <Card className="bg-card/60 border border-primary/10 hover:border-primary/20 transition-colors">
         <CardHeader>
           <CardTitle>Dashboard</CardTitle>
