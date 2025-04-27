@@ -11,9 +11,9 @@ export function ThemeToggle() {
   };
 
   return (
-    <Button 
-      variant="ghost" 
-      size="icon" 
+    <Button
+      variant="ghost"
+      size="icon"
       onClick={toggleTheme}
       className="rounded-full h-8 w-8 p-0"
     >

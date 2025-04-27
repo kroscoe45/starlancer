@@ -9,9 +9,9 @@ import { Card, CardContent } from "@/components/ui/card";
 
 const Monitor = () => {
   return (
-    <div className="space-y-8 w-full">
-      <div className="border-primary/10 w-full">
-        <Carousel className="w-full max-w-xs">
+    <div className="space-y-8">
+      <div className="border-primary/10">
+        <Carousel>
           <CarouselContent>
             {Array.from({ length: 5 }).map((_, index) => (
               <CarouselItem key={index}>

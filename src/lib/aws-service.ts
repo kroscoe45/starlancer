@@ -27,7 +27,7 @@ export interface ResourceMetrics {
   };
 }
 
-// Mock data
+//#region Mock data
 const mockResources: Resource[] = [
   {
     id: 'lambda-1',
@@ -62,6 +62,7 @@ const mockResources: Resource[] = [
     lastUpdated: new Date().toISOString(),
   },
 ];
+//#endregion
 
 // Generate mock time-series data
 const generateMetricData = (days: number, baseValue: number, variance: number): MetricData[] => {

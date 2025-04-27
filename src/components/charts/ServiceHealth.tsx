@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress"; // Using shadcn-ui Progress component
 import { Badge } from "@/components/ui/badge";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   CheckCircle2,
   AlertTriangle,
@@ -9,6 +10,7 @@ import {
   Clock,
   ArrowUpRight,
   BarChart3,
+  Shell,
 } from "lucide-react";
 
 // Mock service health data for AWS services
@@ -190,7 +192,7 @@ export function HealthMonitor() {
       case "outage":
         return <AlertCircle className="h-5 w-5 text-red-500" />;
       default:
-        return <CheckCircle2 className="h-5 w-5 text-green-500" />;
+        return <Shell className="h-5 w-5 text-yellow-500" />;
     }
   };
 
@@ -221,7 +223,15 @@ export function HealthMonitor() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-2">
+      <div className="flex flex-col md:flex-row justify-start">
+        <ToggleGroup type="single">
+          <ToggleGroupItem value="operational">Operational</ToggleGroupItem>
+          <ToggleGroupItem value="degraded">Degraded</ToggleGroupItem>
+          <ToggleGroupItem value="outage">Outage</ToggleGroupItem>
+        </ToggleGroup>
+      </div>
+
+      <div className="flex flex-col md:flex-row justify-center md:items-center mb-2">
         <h2 className="text-xl font-semibold">Service Health Status</h2>
         <div className="flex items-center text-xs text-muted-foreground mt-1 md:mt-0">
           <Clock className="h-3 w-3 mr-1" />

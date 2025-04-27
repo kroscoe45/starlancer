@@ -1,6 +1,6 @@
 import { Outlet } from "react-router-dom";
 import Header from "@/components/layout/Header";
-import Sidebar from "@/components/layout/Sidebar";
+import { Sidebar } from "@/components/layout/StarSidebar";
 
 export default function DashboardLayout() {
   return (
