@@ -167,6 +167,11 @@ const generateMockHealthData = () => {
 
 export function HealthMonitor() {
   const [healthData, setHealthData] = useState(() => generateMockHealthData());
+  const [serviceHealthFilter, setServiceHealthFilter] = useState([
+    "operational",
+    "degraded",
+    "outage",
+  ]);
   const [lastUpdated, setLastUpdated] = useState(new Date());
 
   // Simulate real-time updates
@@ -221,16 +226,24 @@ export function HealthMonitor() {
     }).format(date);
   };
 
+  // Handle toggle changes
+  const handleServiceHealthFilter = (value: string[]) => {
+    setServiceHealthFilter(value);
+  };
+
   return (
     <div className="space-y-4">
-      <div className="flex flex-col md:flex-row justify-start">
-        <ToggleGroup type="single">
-          <ToggleGroupItem value="operational">Operational</ToggleGroupItem>
-          <ToggleGroupItem value="degraded">Degraded</ToggleGroupItem>
-          <ToggleGroupItem value="outage">Outage</ToggleGroupItem>
-        </ToggleGroup>
-      </div>
-
+      <ToggleGroup
+        size={"sm"}
+        type="multiple"
+        variant="outline"
+        value={serviceHealthFilter}
+        onValueChange={handleServiceHealthFilter}
+      >
+        <ToggleGroupItem value="degraded">Degraded</ToggleGroupItem>
+        <ToggleGroupItem value="operational">Operational</ToggleGroupItem>
+        <ToggleGroupItem value="outage">Outage</ToggleGroupItem>
+      </ToggleGroup>
       <div className="flex flex-col md:flex-row justify-center md:items-center mb-2">
         <h2 className="text-xl font-semibold">Service Health Status</h2>
         <div className="flex items-center text-xs text-muted-foreground mt-1 md:mt-0">
