@@ -6,17 +6,18 @@ const statusOptions = [
   {
     value: "operational",
     label: "Operational",
-    colorClass: "bg-green-500 dark:bg-green-600",
+    indicatorClass: "bg-green-500 dark:bg-green-600",
   },
   {
     value: "degraded",
     label: "Degraded",
-    colorClass: "bg-amber-500 dark:bg-amber-600",
+
+    indicatorClass: "bg-amber-500 dark:bg-amber-600",
   },
   {
     value: "outage",
     label: "Outage",
-    colorClass: "bg-red-500 dark:bg-red-600",
+    indicatorClass: "bg-red-500 dark:bg-red-600",
   },
 ];
 
@@ -41,18 +42,16 @@ const ServiceHealthFilter: React.FC = () => {
           value={status.value}
           variant="outline"
           aria-label={`Toggle ${status.label}`}
-          className="group flex items-center gap-1.5 bg-background"
+          className="bg-zinc-100 dark:bg-zinc-800"
         >
           <span
             className={cn(
-              "h-2 w-2 rounded-full",
-              status.colorClass,
+              "h-2 w-2 rounded-full mr-1.5",
+              status.indicatorClass,
               filterValue.includes(status.value) ? "opacity-100" : "opacity-50",
             )}
           />
-          <span className="max-w-0 group-hover:max-w-xs opacity-0 group-hover:opacity-100 transition-all duration-300 ease-in-out">
-            {status.label}
-          </span>
+          <span>{status.label}</span>
         </ToggleGroupItem>
       ))}
     </ToggleGroup>
