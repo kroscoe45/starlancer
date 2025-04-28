@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ServiceHealthFilter } from "@/components/ServiceHealthFilter";
 import { Progress } from "@/components/ui/progress"; // Using shadcn-ui Progress component
 import { Badge } from "@/components/ui/badge";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   CheckCircle2,
   AlertTriangle,
@@ -167,12 +167,6 @@ const generateMockHealthData = () => {
 
 export function HealthMonitor() {
   const [healthData, setHealthData] = useState(() => generateMockHealthData());
-  const [serviceHealthFilter, setServiceHealthFilter] = useState([
-    "operational",
-    "degraded",
-    "outage",
-  ]);
-  const [lastUpdated, setLastUpdated] = useState(new Date());
 
   // Simulate real-time updates
   useEffect(() => {
@@ -180,7 +174,6 @@ export function HealthMonitor() {
       // Update data randomly to simulate real-time changes
       if (Math.random() > 0.7) {
         setHealthData(generateMockHealthData());
-        setLastUpdated(new Date());
       }
     }, 15000); // Check for updates every 15 seconds
 
@@ -217,39 +210,10 @@ export function HealthMonitor() {
     }
   };
 
-  // Format the timestamp
-  const formatLastUpdated = (date: Date) => {
-    return new Intl.DateTimeFormat("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-    }).format(date);
-  };
-
-  // Handle toggle changes
-  const handleServiceHealthFilter = (value: string[]) => {
-    setServiceHealthFilter(value);
-  };
-
   return (
     <div className="space-y-4">
-      <ToggleGroup
-        size={"sm"}
-        type="multiple"
-        variant="outline"
-        value={serviceHealthFilter}
-        onValueChange={handleServiceHealthFilter}
-      >
-        <ToggleGroupItem value="degraded">Degraded</ToggleGroupItem>
-        <ToggleGroupItem value="operational">Operational</ToggleGroupItem>
-        <ToggleGroupItem value="outage">Outage</ToggleGroupItem>
-      </ToggleGroup>
-      <div className="flex flex-col md:flex-row justify-center md:items-center mb-2">
-        <h2 className="text-xl font-semibold">Service Health Status</h2>
-        <div className="flex items-center text-xs text-muted-foreground mt-1 md:mt-0">
-          <Clock className="h-3 w-3 mr-1" />
-          <span>Last updated: {formatLastUpdated(lastUpdated)}</span>
-        </div>
+      <div className="flex flex-col md:flex-row justify-start md:items-center mb-2">
+        <ServiceHealthFilter />
       </div>
 
       {/* Overall health status */}

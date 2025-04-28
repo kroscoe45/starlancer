@@ -27,13 +27,13 @@ export function ThemeProvider({
   ...props
 }: ThemeProviderProps) {
   const [theme, setTheme] = useState<Theme>(
-    () => (localStorage.getItem(storageKey) as Theme) || defaultTheme
+    () => (localStorage.getItem(storageKey) as Theme) || defaultTheme,
   );
 
   // Add this to set dark mode initially before any hydration or React code runs
   useEffect(() => {
     // Script to prevent flash of light mode
-    const script = document.createElement('script');
+    const script = document.createElement("script");
     script.innerHTML = `
       (function() {
         const storageKey = "${storageKey}";
@@ -49,22 +49,22 @@ export function ThemeProvider({
         );
       })();
     `;
-    script.setAttribute('id', 'theme-initializer');
-    
+    script.setAttribute("id", "theme-initializer");
+
     // Check if script already exists to prevent duplication
-    if (!document.getElementById('theme-initializer')) {
+    if (!document.getElementById("theme-initializer")) {
       document.head.insertBefore(script, document.head.firstChild);
     }
-    
+
     return () => {
-      const initializer = document.getElementById('theme-initializer');
+      const initializer = document.getElementById("theme-initializer");
       if (initializer) initializer.remove();
     };
   }, [storageKey]);
 
   useEffect(() => {
     const root = window.document.documentElement;
-    
+
     // Remove the old theme class
     root.classList.remove("light", "dark");
 
