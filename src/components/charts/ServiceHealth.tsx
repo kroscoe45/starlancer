@@ -211,7 +211,7 @@ export function HealthMonitor() {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 bg-background">
       <div className="flex flex-col md:flex-row justify-start md:items-center mb-2">
         <ServiceHealthFilter />
       </div>
