@@ -14,20 +14,10 @@ export default function Header() {
 
         <div className="flex items-center gap-2">
           <Link to="/dashboard">
-            <Button
-              variant="ghost"
-              className="text-foreground dark:text-foreground hover:bg-secondary/20"
-            >
-              Dashboard
-            </Button>
+            <Button variant="ghost">Dashboard</Button>
           </Link>
           <Link to="/settings">
-            <Button
-              variant="ghost"
-              className="text-foreground dark:text-foreground hover:bg-secondary/20"
-            >
-              Settings
-            </Button>
+            <Button variant="ghost">Settings</Button>
           </Link>
           <ThemeToggle />
         </div>
