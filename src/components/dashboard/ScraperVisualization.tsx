@@ -1,13 +1,9 @@
 // src/components/dashboard/ScraperVisualization.tsx
-//
-// Option 1: Absolute minimal working configuration
-// Let react-force-graph-2d handle everything with defaults
-//
 import { useCallback, useEffect, useState, useRef } from "react";
 import ForceGraph2D from "react-force-graph-2d";
-// Add AWS SDK imports
-import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, ScanCommand } from "@aws-sdk/lib-dynamodb";
+import { ScanCommand } from "@aws-sdk/lib-dynamodb";
+import { useAWSConfig } from "@/hooks/useAWSConfig";
+import { AWSConfigDialog } from "./AWSConfigDialog";
 
 // Types for scraper data
 interface ScrapedPage {
@@ -55,24 +51,17 @@ export function ScraperVisualization() {
     new Map(),
   );
   const [selectedWebsite, setSelectedWebsite] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fgRef = useRef<any>(null);
 
-  // Initialize AWS DynamoDB client
-  const dynamoClient = useRef<DynamoDBDocumentClient | null>(null);
-
-  useEffect(() => {
-    // Initialize DynamoDB client
-    const client = new DynamoDBClient({
-      region: "us-west-2",
-      // Will use environment variables or AWS CLI credentials
-    });
-    dynamoClient.current = DynamoDBDocumentClient.from(client);
-
-    // Load real data
-    loadWebsiteData();
-  }, []);
+  // Use the AWS configuration hook
+  const {
+    dynamoClient,
+    isConfigured,
+    error: configError,
+    configure,
+  } = useAWSConfig();
 
   // Transform DynamoDB sitemap data to our WebsiteSession format
   const transformDynamoData = useCallback(
@@ -134,20 +123,21 @@ export function ScraperVisualization() {
   );
 
   // Load data from DynamoDB
-  const loadWebsiteData = async () => {
+  const loadWebsiteData = useCallback(async () => {
+    if (!dynamoClient) {
+      setError("AWS not configured. Please configure your AWS settings.");
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
-
-      if (!dynamoClient.current) {
-        throw new Error("DynamoDB client not initialized");
-      }
 
       const command = new ScanCommand({
         TableName: "website-sitemaps",
       });
 
-      const response = await dynamoClient.current.send(command);
+      const response = await dynamoClient.send(command);
       const items = response.Items || [];
 
       console.log("Loaded DynamoDB items:", items);
@@ -172,7 +162,14 @@ export function ScraperVisualization() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [dynamoClient, transformDynamoData]);
+
+  // Load data when AWS client becomes available
+  useEffect(() => {
+    if (dynamoClient && isConfigured) {
+      loadWebsiteData();
+    }
+  }, [dynamoClient, isConfigured, loadWebsiteData]);
 
   // Get current website data for visualization
   const currentWebsite = selectedWebsite ? websites.get(selectedWebsite) : null;
@@ -231,6 +228,9 @@ export function ScraperVisualization() {
     console.log("Clicked node:", node);
   }, []);
 
+  // Combined error from configuration or data loading
+  const displayError = configError || error;
+
   return (
     <div className="w-full h-[600px] bg-slate-900 rounded-lg border relative overflow-hidden">
       {/* Loading State */}
@@ -244,27 +244,46 @@ export function ScraperVisualization() {
       )}
 
       {/* Error State */}
-      {error && (
+      {displayError && (
         <div className="absolute inset-0 bg-slate-900/80 flex items-center justify-center z-20">
           <div className="text-white text-center p-4">
-            <p className="text-red-400 mb-2">Error: {error}</p>
-            <button
-              onClick={loadWebsiteData}
-              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-            >
-              Retry
-            </button>
+            <p className="text-red-400 mb-4">Error: {displayError}</p>
+            <div className="flex gap-2 justify-center">
+              {!isConfigured && (
+                <AWSConfigDialog
+                  isConfigured={isConfigured}
+                  error={configError}
+                  onConfigure={configure}
+                />
+              )}
+              {isConfigured && (
+                <button
+                  onClick={loadWebsiteData}
+                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                >
+                  Retry
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}
 
-      {/* Website Selector */}
+      {/* Controls */}
       <div className="absolute top-4 left-4 z-10 flex gap-2">
+        {/* AWS Configuration */}
+        <AWSConfigDialog
+          isConfigured={isConfigured}
+          error={configError}
+          onConfigure={configure}
+        />
+
+        {/* Website Selector */}
         <select
           value={selectedWebsite || ""}
           onChange={(e) => setSelectedWebsite(e.target.value)}
           className="bg-black/50 text-white border border-white/20 rounded px-3 py-1 text-sm backdrop-blur-sm"
-          disabled={loading}
+          disabled={loading || !isConfigured}
         >
           <option value="">Select website...</option>
           {Array.from(websites.entries()).map(([id, website]) => (
@@ -277,7 +296,7 @@ export function ScraperVisualization() {
         {/* Refresh Button */}
         <button
           onClick={loadWebsiteData}
-          disabled={loading}
+          disabled={loading || !isConfigured}
           className="px-3 py-1 bg-black/50 text-white border border-white/20 rounded text-sm backdrop-blur-sm hover:bg-black/70 disabled:opacity-50"
         >
           ↻
@@ -305,32 +324,32 @@ export function ScraperVisualization() {
             <div className="w-3 h-3 rounded-full bg-green-400"></div>
             <span>Completed</span>
           </div>
-          <div className="text-xs opacity-75 mt-2">Real data from DynamoDB</div>
+          <div className="text-xs opacity-75 mt-2">
+            {isConfigured
+              ? "Real data from DynamoDB"
+              : "Configure AWS to load data"}
+          </div>
         </div>
       </div>
 
       {/* Force Graph */}
-      {!loading && !error && (
+      {!loading && !displayError && isConfigured && (
         <ForceGraph2D
           ref={fgRef}
           graphData={graphData}
           width={800}
           height={600}
           backgroundColor="#0f172a"
-          // Essential props
-          enablePointerInteraction={true} // Critical for drag reheating
-          enableNodeDrag={true} // Enable dragging
-          enableZoomInteraction={true} // Enable zoom
-          enablePanInteraction={true} // Enable pan
-          // Step 1: Gentle D3 parameters that work
-          d3VelocityDecay={0.4} // Slightly more friction for smoother movement
-          // Basic visual properties
+          enablePointerInteraction={true}
+          enableNodeDrag={true}
+          enableZoomInteraction={true}
+          enablePanInteraction={true}
+          d3VelocityDecay={0.4}
           nodeColor={(node: GraphNode) => node.color}
           nodeVal={(node: GraphNode) => node.val}
           nodeLabel={(node: GraphNode) => node.name}
           linkColor={() => "#ffffff25"}
           linkWidth={2}
-          // Interaction
           onNodeClick={handleNodeClick}
         />
       )}

@@ -1,6 +1,7 @@
 // src/pages/Dashboard.tsx
 import { PageTemplate } from "@/components/layout/PageTemplate";
 import { ScraperVisualization } from "@/components/dashboard/ScraperVisualization";
+import { ScrapingTrigger } from "@/components/dashboard/ScrapingTrigger";
 import {
   Card,
   CardContent,
@@ -83,6 +84,9 @@ export function Dashboard() {
       <div className="space-y-6">
         {/* Quick Stats */}
         <QuickStats />
+
+        {/* Scraping Trigger */}
+        <ScrapingTrigger />
 
         {/* Live Scraper Visualization */}
         <Card>
