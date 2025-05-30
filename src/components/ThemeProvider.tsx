@@ -1,85 +1,48 @@
-import { useEffect, useState } from "react";
-import { ThemeProviderContext } from "@/hooks/use-theme";
+import { createContext, useContext, useEffect, useState } from "react";
 
-type Theme = "dark" | "light" | "system";
+import type { ReactNode } from "react";
 
-type ThemeProviderProps = {
-        children: React.ReactNode;
-        defaultTheme?: Theme;
-        storageKey?: string;
-};
+type Theme = "light" | "dark";
 
-export function ThemeProvider({
-        children,
-        defaultTheme = "dark", // Changed default to dark
-        storageKey = "starlancer-theme",
-        ...props
-}: ThemeProviderProps) {
-        const [theme, setTheme] = useState<Theme>(
-                () => (localStorage.getItem(storageKey) as Theme) || defaultTheme,
-        );
+interface ThemeContextType {
+  theme: Theme;
+  toggleTheme: () => void;
+}
 
-        // Add this to set dark mode initially before any hydration or React code runs
-        useEffect(() => {
-                // Script to prevent flash of light mode
-                const script = document.createElement("script");
-                script.innerHTML = `
-      (function() {
-        const storageKey = "${storageKey}";
-        const savedTheme = localStorage.getItem(storageKey);
-        // If theme not set in localStorage, default to dark
-        const initialTheme = savedTheme || "dark";
-        
-        document.documentElement.classList.remove('light', 'dark');
-        document.documentElement.classList.add(
-          initialTheme === 'system' ? 
-            (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : 
-            initialTheme
-        );
-      })();
-    `;
-                script.setAttribute("id", "theme-initializer");
+const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
-                // Check if script already exists to prevent duplication
-                if (!document.getElementById("theme-initializer")) {
-                        document.head.insertBefore(script, document.head.firstChild);
-                }
+export function useTheme() {
+  const context = useContext(ThemeContext);
+  if (!context) {
+    throw new Error("dont do that");
+  }
+  return context;
+}
 
-                return () => {
-                        const initializer = document.getElementById("theme-initializer");
-                        if (initializer) initializer.remove();
-                };
-        }, [storageKey]);
+interface ThemeProviderProps {
+  children: ReactNode;
+}
 
-        useEffect(() => {
-                const root = window.document.documentElement;
+export function ThemeProvider({ children }: ThemeProviderProps) {
+  const [theme, setTheme] = useState<Theme>("dark");
 
-                // Remove the old theme class
-                root.classList.remove("light", "dark");
+  useEffect(() => {
+    const root = document.documentElement;
 
-                // Add the new theme class
-                if (theme === "system") {
-                        const systemTheme = window.matchMedia("(prefers-color-scheme: dark)")
-                                .matches
-                                ? "dark"
-                                : "light";
-                        root.classList.add(systemTheme);
-                } else {
-                        root.classList.add(theme);
-                }
-        }, [theme]);
+    if (theme === "dark") {
+      root.classList.add("dark");
+    } else {
+      root.classList.remove("dark");
+    }
+  }, [theme]);
 
-        const value = {
-                theme,
-                setTheme: (theme: Theme) => {
-                        localStorage.setItem(storageKey, theme);
-                        setTheme(theme);
-                },
-        };
+  const toggleTheme = () => {
+    setTheme((prev) => (prev === "light" ? "dark" : "light"));
+  };
 
-        return (
-                <ThemeProviderContext.Provider {...props} value={value}>
-                        {children}
-                </ThemeProviderContext.Provider>
-        );
+  return (
+    <ThemeContext.Provider value={{ theme, toggleTheme }}>
+      {children}
+    </ThemeContext.Provider>
+  );
 }
