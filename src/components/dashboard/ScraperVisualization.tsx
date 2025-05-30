@@ -1,11 +1,13 @@
 // src/components/dashboard/ScraperVisualization.tsx
 //
-// DEBUGGING VERSION: Custom rendering is commented out to show default nodes/links
-// Once you verify the data is working, uncomment the custom rendering sections
-// to enable Obsidian-style hover effects and animations
+// Option 1: Absolute minimal working configuration
+// Let react-force-graph-2d handle everything with defaults
 //
 import { useCallback, useEffect, useState, useRef } from "react";
 import ForceGraph2D from "react-force-graph-2d";
+// Add AWS SDK imports
+import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import { DynamoDBDocumentClient, ScanCommand } from "@aws-sdk/lib-dynamodb";
 
 // Types for scraper data
 interface ScrapedPage {
@@ -36,16 +38,11 @@ interface GraphNode {
   isHomepage: boolean;
   val: number;
   color: string;
-  fx?: number;
-  fy?: number;
-  x?: number;
-  y?: number;
 }
 
 interface GraphLink {
   source: string;
   target: string;
-  strength: number;
 }
 
 interface GraphData {
@@ -58,8 +55,124 @@ export function ScraperVisualization() {
     new Map(),
   );
   const [selectedWebsite, setSelectedWebsite] = useState<string | null>(null);
-  // const [hoveredNode, setHoveredNode] = useState<GraphNode | null>(null); // COMMENTED OUT - not used with default rendering
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const fgRef = useRef<any>(null);
+
+  // Initialize AWS DynamoDB client
+  const dynamoClient = useRef<DynamoDBDocumentClient | null>(null);
+
+  useEffect(() => {
+    // Initialize DynamoDB client
+    const client = new DynamoDBClient({
+      region: "us-west-2",
+      // Will use environment variables or AWS CLI credentials
+    });
+    dynamoClient.current = DynamoDBDocumentClient.from(client);
+
+    // Load real data
+    loadWebsiteData();
+  }, []);
+
+  // Transform DynamoDB sitemap data to our WebsiteSession format
+  const transformDynamoData = useCallback(
+    (dynamoItems: any[]): Map<string, WebsiteSession> => {
+      const websiteMap = new Map<string, WebsiteSession>();
+
+      dynamoItems.forEach((item) => {
+        const domain = item.website_domain;
+        const sitemap = item.sitemap || {};
+        const lastUpdated = new Date(item.last_updated * 1000);
+
+        // Create pages map from sitemap
+        const pagesMap = new Map<string, ScrapedPage>();
+
+        // Determine homepage (shortest path or contains domain root)
+        const urls = Object.keys(sitemap);
+        const homepage =
+          urls.find((url) => {
+            const path = new URL(url).pathname;
+            return path === "/" || path === "";
+          }) || urls[0]; // fallback to first URL
+
+        // Create ScrapedPage objects from sitemap
+        Object.entries(sitemap).forEach(([url, linkedUrls]) => {
+          const isHomepage = url === homepage;
+          const urlObj = new URL(url);
+
+          pagesMap.set(url, {
+            url,
+            status: "completed", // All DynamoDB data is completed
+            title:
+              urlObj.pathname === "/"
+                ? "Homepage"
+                : urlObj.pathname.split("/").pop() || "Page",
+            isHomepage,
+            discoveredAt: lastUpdated,
+            completedAt: lastUpdated,
+            websiteId: domain,
+            linksTo: Array.isArray(linkedUrls) ? linkedUrls : [],
+          });
+        });
+
+        // Create WebsiteSession
+        const websiteSession: WebsiteSession = {
+          id: domain,
+          domain,
+          homepageUrl: homepage || `https://${domain}`,
+          startTime: lastUpdated,
+          status: "completed",
+          pages: pagesMap,
+        };
+
+        websiteMap.set(domain, websiteSession);
+      });
+
+      return websiteMap;
+    },
+    [],
+  );
+
+  // Load data from DynamoDB
+  const loadWebsiteData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      if (!dynamoClient.current) {
+        throw new Error("DynamoDB client not initialized");
+      }
+
+      const command = new ScanCommand({
+        TableName: "website-sitemaps",
+      });
+
+      const response = await dynamoClient.current.send(command);
+      const items = response.Items || [];
+
+      console.log("Loaded DynamoDB items:", items);
+
+      if (items.length === 0) {
+        setError("No website data found in DynamoDB");
+        return;
+      }
+
+      // Transform and set data
+      const websiteMap = transformDynamoData(items);
+      setWebsites(websiteMap);
+
+      // Auto-select first website
+      const firstWebsite = websiteMap.keys().next().value;
+      if (firstWebsite) {
+        setSelectedWebsite(firstWebsite);
+      }
+    } catch (err) {
+      console.error("Error loading website data:", err);
+      setError(err instanceof Error ? err.message : "Failed to load data");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Get current website data for visualization
   const currentWebsite = selectedWebsite ? websites.get(selectedWebsite) : null;
@@ -70,7 +183,7 @@ export function ScraperVisualization() {
       case "pending":
         return "#94a3b8"; // Cool gray
       case "scraping":
-        return "#3b82f6"; // Blue with pulse effect
+        return "#3b82f6"; // Blue
       case "completed":
         return "#10b981"; // Emerald green
       case "failed":
@@ -90,10 +203,8 @@ export function ScraperVisualization() {
         name: page.title || new URL(page.url).pathname,
         status: page.status,
         isHomepage: page.isHomepage,
-        val: page.isHomepage ? 15 : 5,
+        val: page.isHomepage ? 15 : 8,
         color: getStatusColor(page.status),
-        fx: page.isHomepage ? 0 : undefined,
-        fy: page.isHomepage ? 0 : undefined,
       }));
 
       const links: GraphLink[] = pages.flatMap((page) =>
@@ -102,7 +213,6 @@ export function ScraperVisualization() {
           .map((linkedUrl) => ({
             source: page.url,
             target: linkedUrl,
-            strength: page.isHomepage ? 2 : 1,
           })),
       );
 
@@ -111,240 +221,67 @@ export function ScraperVisualization() {
     [getStatusColor],
   );
 
-  // COMMENTED OUT - Custom node rendering (not used with default rendering)
-  /*
-  const drawNode = useCallback(
-    (node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
-      const typedNode = node as GraphNode;
-      const label = typedNode.name;
-      const fontSize = 12 / globalScale;
-      const isHovered = hoveredNode?.id === typedNode.id;
-
-      // Ensure node has position
-      if (typeof typedNode.x !== 'number' || typeof typedNode.y !== 'number') {
-        return;
-      }
-
-      // Node circle
-      const nodeRadius = Math.sqrt(typedNode.val || 1) * 4;
-      const displayRadius = isHovered ? nodeRadius * 1.5 : nodeRadius;
-
-      // Draw node circle with status-based styling
-      ctx.beginPath();
-      ctx.arc(typedNode.x, typedNode.y, displayRadius, 0, 2 * Math.PI);
-
-      // Fill color based on status
-      ctx.fillStyle = typedNode.color;
-      ctx.fill();
-
-      // Border styling
-      ctx.strokeStyle = isHovered ? '#ffffff' : 'rgba(255,255,255,0.3)';
-      ctx.lineWidth = isHovered ? 3 / globalScale : 1 / globalScale;
-      ctx.stroke();
-
-      // Pulsing effect for scraping nodes
-      if (typedNode.status === 'scraping') {
-        const time = Date.now() * 0.005;
-        const pulseRadius = displayRadius + Math.sin(time) * 3;
-        ctx.beginPath();
-        ctx.arc(typedNode.x, typedNode.y, pulseRadius, 0, 2 * Math.PI);
-        ctx.strokeStyle = 'rgba(59, 130, 246, 0.5)';
-        ctx.lineWidth = 2 / globalScale;
-        ctx.stroke();
-      }
-
-      // Show text only on hover with smooth background
-      if (isHovered && globalScale > 0.5) {
-        ctx.font = `${fontSize}px 'Inter', system-ui, sans-serif`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-
-        // Measure text for background
-        const textWidth = ctx.measureText(label).width;
-        const textHeight = fontSize;
-        const padding = 8 / globalScale;
-
-        // Draw text background
-        const bgX = typedNode.x - textWidth / 2 - padding;
-        const bgY = typedNode.y - displayRadius - textHeight - padding * 2;
-        const bgWidth = textWidth + padding * 2;
-        const bgHeight = textHeight + padding * 2;
-
-        // Background
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-        ctx.fillRect(bgX, bgY, bgWidth, bgHeight);
-
-        // Text
-        ctx.fillStyle = '#ffffff';
-        ctx.fillText(label, typedNode.x, bgY + bgHeight / 2);
-      }
-    },
-    [hoveredNode]
-  );
-  */
-
-  // COMMENTED OUT - Custom link rendering (not used with default rendering)
-  /*
-  const drawLink = useCallback((link: any, ctx: CanvasRenderingContext2D) => {
-    const start = link.source;
-    const end = link.target;
-
-    // Skip incomplete links
-    if (
-      typeof start !== 'object' ||
-      typeof end !== 'object' ||
-      typeof start.x !== 'number' ||
-      typeof start.y !== 'number' ||
-      typeof end.x !== 'number' ||
-      typeof end.y !== 'number'
-    ) {
-      return;
-    }
-
-    // Elastic curve effect
-    const dx = end.x - start.x;
-    const dy = end.y - start.y;
-    const distance = Math.sqrt(dx * dx + dy * dy);
-
-    if (distance < 1) return;
-
-    // Draw curved link for organic appearance
-    ctx.beginPath();
-    ctx.moveTo(start.x, start.y);
-
-    // Add slight curve for organic feel
-    const curvature = 0.1;
-    const midX = (start.x + end.x) / 2 + curvature * dy;
-    const midY = (start.y + end.y) / 2 - curvature * dx;
-
-    ctx.quadraticCurveTo(midX, midY, end.x, end.y);
-
-    // Link styling
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
-    ctx.lineWidth = Math.max(1, link.strength || 1);
-    ctx.stroke();
-  }, []);
-  */
-
-  // Mock data generation - replace with real webscraper data
-  useEffect(() => {
-    const mockWebsite: WebsiteSession = {
-      id: "example-com",
-      domain: "example.com",
-      homepageUrl: "https://example.com",
-      startTime: new Date(),
-      status: "active",
-      pages: new Map([
-        [
-          "https://example.com",
-          {
-            url: "https://example.com",
-            status: "completed",
-            title: "Homepage",
-            isHomepage: true,
-            discoveredAt: new Date(),
-            websiteId: "example-com",
-            linksTo: [
-              "https://example.com/about",
-              "https://example.com/products",
-            ],
-          },
-        ],
-        [
-          "https://example.com/about",
-          {
-            url: "https://example.com/about",
-            status: "completed",
-            title: "About Us",
-            isHomepage: false,
-            discoveredAt: new Date(),
-            websiteId: "example-com",
-            linksTo: ["https://example.com/team"],
-          },
-        ],
-        [
-          "https://example.com/products",
-          {
-            url: "https://example.com/products",
-            status: "scraping",
-            title: "Products",
-            isHomepage: false,
-            discoveredAt: new Date(),
-            websiteId: "example-com",
-            linksTo: ["https://example.com/contact"],
-          },
-        ],
-        [
-          "https://example.com/team",
-          {
-            url: "https://example.com/team",
-            status: "pending",
-            title: "Our Team",
-            isHomepage: false,
-            discoveredAt: new Date(),
-            websiteId: "example-com",
-            linksTo: [],
-          },
-        ],
-        [
-          "https://example.com/contact",
-          {
-            url: "https://example.com/contact",
-            status: "failed",
-            title: "Contact",
-            isHomepage: false,
-            discoveredAt: new Date(),
-            websiteId: "example-com",
-            linksTo: [],
-          },
-        ],
-      ]),
-    };
-
-    console.log("Setting up mock data:", mockWebsite); // Debug log
-    setWebsites(new Map([["example-com", mockWebsite]]));
-    setSelectedWebsite("example-com");
-  }, []);
-
   const graphData = currentWebsite
     ? getGraphData(currentWebsite)
     : { nodes: [], links: [] };
 
-  // Debug logging
-  useEffect(() => {
-    console.log("Graph data:", graphData);
-    console.log("Current website:", currentWebsite);
-  }, [graphData, currentWebsite]);
-
-  // COMMENTED OUT - Handle node hover (not used with default rendering)
-  /*
-  const handleNodeHover = useCallback((node: any) => {
-    setHoveredNode(node as GraphNode | null);
-  }, []);
-  */
-
   // Handle node click
-  const handleNodeClick = useCallback((node: any) => {
-    const typedNode = node as GraphNode;
-    console.log("Clicked node:", typedNode);
-    // Could open page details, show scraped content, etc.
+  const handleNodeClick = useCallback((node: GraphNode | null) => {
+    if (!node) return;
+    console.log("Clicked node:", node);
   }, []);
 
   return (
     <div className="w-full h-[600px] bg-slate-900 rounded-lg border relative overflow-hidden">
+      {/* Loading State */}
+      {loading && (
+        <div className="absolute inset-0 bg-slate-900/80 flex items-center justify-center z-20">
+          <div className="text-white text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto mb-2"></div>
+            <p>Loading website data...</p>
+          </div>
+        </div>
+      )}
+
+      {/* Error State */}
+      {error && (
+        <div className="absolute inset-0 bg-slate-900/80 flex items-center justify-center z-20">
+          <div className="text-white text-center p-4">
+            <p className="text-red-400 mb-2">Error: {error}</p>
+            <button
+              onClick={loadWebsiteData}
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Website Selector */}
-      <div className="absolute top-4 left-4 z-10">
+      <div className="absolute top-4 left-4 z-10 flex gap-2">
         <select
           value={selectedWebsite || ""}
           onChange={(e) => setSelectedWebsite(e.target.value)}
           className="bg-black/50 text-white border border-white/20 rounded px-3 py-1 text-sm backdrop-blur-sm"
+          disabled={loading}
         >
+          <option value="">Select website...</option>
           {Array.from(websites.entries()).map(([id, website]) => (
             <option key={id} value={id}>
               {website.domain}
             </option>
           ))}
         </select>
+
+        {/* Refresh Button */}
+        <button
+          onClick={loadWebsiteData}
+          disabled={loading}
+          className="px-3 py-1 bg-black/50 text-white border border-white/20 rounded text-sm backdrop-blur-sm hover:bg-black/70 disabled:opacity-50"
+        >
+          ↻
+        </button>
       </div>
 
       {/* Stats Overlay */}
@@ -354,6 +291,9 @@ export function ScraperVisualization() {
             <div>Domain: {currentWebsite.domain}</div>
             <div>Pages: {currentWebsite.pages.size}</div>
             <div>Status: {currentWebsite.status}</div>
+            <div className="text-xs opacity-75">
+              Updated: {currentWebsite.startTime.toLocaleDateString()}
+            </div>
           </div>
         )}
       </div>
@@ -362,76 +302,41 @@ export function ScraperVisualization() {
       <div className="absolute bottom-4 left-4 z-10 bg-black/50 text-white rounded p-3 text-xs backdrop-blur-sm">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-gray-400"></div>
-            <span>Pending</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-blue-400"></div>
-            <span>Scraping</span>
-          </div>
-          <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded-full bg-green-400"></div>
             <span>Completed</span>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-red-400"></div>
-            <span>Failed</span>
-          </div>
+          <div className="text-xs opacity-75 mt-2">Real data from DynamoDB</div>
         </div>
       </div>
 
       {/* Force Graph */}
-      <ForceGraph2D
-        ref={fgRef}
-        graphData={graphData}
-        width={800}
-        height={600}
-        backgroundColor="#0f172a"
-        d3AlphaDecay={0.01}
-        d3VelocityDecay={0.2}
-        warmupTicks={100}
-        cooldownTicks={200}
-        // CURRENTLY using default rendering to verify data works
-        nodeColor={(node: any) => (node as GraphNode).color}
-        nodeVal={(node: any) => (node as GraphNode).val}
-        nodeLabel={(node: any) => (node as GraphNode).name}
-        linkColor={() => "#ffffff40"}
-        linkWidth={2}
-        // COMMENTED OUT - Custom rendering (uncomment for Obsidian-style effects)
-        // nodeCanvasObject={drawNode}
-        // linkCanvasObject={drawLink}
-        // nodeVisibility={() => false}
-        // linkVisibility={() => false}
-        // onNodeHover={handleNodeHover}
-
-        onNodeClick={handleNodeClick}
-        enableZoomInteraction={true}
-        enablePanInteraction={true}
-      />
+      {!loading && !error && (
+        <ForceGraph2D
+          ref={fgRef}
+          graphData={graphData}
+          width={800}
+          height={600}
+          backgroundColor="#0f172a"
+          // Essential props
+          enablePointerInteraction={true} // Critical for drag reheating
+          enableNodeDrag={true} // Enable dragging
+          enableZoomInteraction={true} // Enable zoom
+          enablePanInteraction={true} // Enable pan
+          // Step 1: Gentle D3 parameters that work
+          d3VelocityDecay={0.4} // Slightly more friction for smoother movement
+          // Basic visual properties
+          nodeColor={(node: GraphNode) => node.color}
+          nodeVal={(node: GraphNode) => node.val}
+          nodeLabel={(node: GraphNode) => node.name}
+          linkColor={() => "#ffffff25"}
+          linkWidth={2}
+          // Interaction
+          onNodeClick={handleNodeClick}
+        />
+      )}
     </div>
   );
 }
 
 // Export for compatibility
 export { ScraperVisualization as ObsidianScraperVisualization };
-
-/*
-TO ENABLE CUSTOM OBSIDIAN-STYLE RENDERING:
-
-1. Uncomment the hoveredNode state:
-   const [hoveredNode, setHoveredNode] = useState<GraphNode | null>(null);
-
-2. Uncomment the drawNode and drawLink functions
-
-3. Uncomment the handleNodeHover function
-
-4. In ForceGraph2D component, uncomment:
-   nodeCanvasObject={drawNode}
-   linkCanvasObject={drawLink}
-   nodeVisibility={() => false}
-   linkVisibility={() => false}
-   onNodeHover={handleNodeHover}
-
-5. Remove the default rendering props:
-   nodeColor, nodeVal, nodeLabel, linkColor, linkWidth
-*/
