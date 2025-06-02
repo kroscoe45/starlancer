@@ -2,6 +2,7 @@
 import { useEffect, useState, useRef } from "react";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, ScanCommand } from "@aws-sdk/lib-dynamodb";
+import { fromCognitoIdentityPool } from "@aws-sdk/credential-providers";
 import {
   dashboardLogger,
   logConfigChange,
@@ -28,7 +29,7 @@ interface UseAWSConfigReturn {
   getConnectionStatus: () => Promise<string>;
 }
 
-// Default configuration - you can override these via environment variables or the configure method
+// Default configuration - prioritizes environment variables for zero-config
 const DEFAULT_CONFIG: AWSConfig = {
   region: import.meta.env.VITE_AWS_REGION || "us-west-2",
   accessKeyId: import.meta.env.VITE_AWS_ACCESS_KEY_ID,
@@ -88,8 +89,10 @@ export function useAWSConfig(): UseAWSConfigReturn {
       logDataOperation("useAWSConfig", "test_connection_started");
 
       // Try to list tables or scan a small amount from a known table
+      const tableName =
+        import.meta.env.VITE_SITEMAP_TABLE_NAME || "website-sitemaps";
       const command = new ScanCommand({
-        TableName: "website-sitemaps",
+        TableName: tableName,
         Limit: 1, // Just get one item to test connection
       });
 
@@ -109,6 +112,7 @@ export function useAWSConfig(): UseAWSConfigReturn {
           hasAccessKeyId: !!configRef.current.accessKeyId,
           hasSecretKey: !!configRef.current.secretAccessKey,
           hasSessionToken: !!configRef.current.sessionToken,
+          hasIdentityPoolId: !!configRef.current.identityPoolId,
         },
       );
       return false;
@@ -142,22 +146,40 @@ export function useAWSConfig(): UseAWSConfigReturn {
           hasAccessKeyId: !!configRef.current.accessKeyId,
           hasSecretKey: !!configRef.current.secretAccessKey,
           hasSessionToken: !!configRef.current.sessionToken,
-          configurationMethod: configRef.current.accessKeyId
-            ? "static_credentials"
-            : "default_chain",
+          hasIdentityPoolId: !!configRef.current.identityPoolId,
+          configurationMethod: configRef.current.identityPoolId
+            ? "cognito_identity_pool"
+            : configRef.current.accessKeyId
+              ? "static_credentials"
+              : "default_chain",
         },
         {
           region: oldConfig.region,
           hasAccessKeyId: !!oldConfig.accessKeyId,
           hasSecretKey: !!oldConfig.secretAccessKey,
           hasSessionToken: !!oldConfig.sessionToken,
+          hasIdentityPoolId: !!oldConfig.identityPoolId,
         },
       );
 
       // Create credentials provider
       let credentials;
 
-      if (configRef.current.accessKeyId && configRef.current.secretAccessKey) {
+      if (configRef.current.identityPoolId) {
+        // Use Cognito Identity Pool (zero-config approach)
+        credentials = fromCognitoIdentityPool({
+          identityPoolId: configRef.current.identityPoolId,
+          clientConfig: { region: configRef.current.region },
+        });
+
+        logDataOperation("useAWSConfig", "using_cognito_identity_pool", {
+          identityPoolId: configRef.current.identityPoolId,
+          region: configRef.current.region,
+        });
+      } else if (
+        configRef.current.accessKeyId &&
+        configRef.current.secretAccessKey
+      ) {
         // Use static credentials (Access Key + Secret + optional Session Token)
         credentials = {
           accessKeyId: configRef.current.accessKeyId,
@@ -227,12 +249,13 @@ export function useAWSConfig(): UseAWSConfigReturn {
           hasAccessKeyId: !!configRef.current.accessKeyId,
           hasSecretKey: !!configRef.current.secretAccessKey,
           hasSessionToken: !!configRef.current.sessionToken,
+          hasIdentityPoolId: !!configRef.current.identityPoolId,
         },
       );
     }
   };
 
-  // Auto-configure on mount if we have the required environment variables
+  // Auto-configure on mount - prioritize Cognito Identity Pool for zero-config
   useEffect(() => {
     logDataOperation("useAWSConfig", "hook_mounted", {
       hasEnvAccessKeyId: !!DEFAULT_CONFIG.accessKeyId,
@@ -242,14 +265,16 @@ export function useAWSConfig(): UseAWSConfigReturn {
       region: DEFAULT_CONFIG.region,
     });
 
-    if (
-      !isConfigured &&
-      (DEFAULT_CONFIG.accessKeyId ||
-        DEFAULT_CONFIG.identityPoolId ||
-        import.meta.env.DEV)
-    ) {
-      logDataOperation("useAWSConfig", "auto_configuration_started");
-      configure(DEFAULT_CONFIG);
+    if (!isConfigured) {
+      if (DEFAULT_CONFIG.identityPoolId) {
+        // Zero-config mode: Cognito Identity Pool is available
+        logDataOperation("useAWSConfig", "auto_configuration_cognito_started");
+        configure(DEFAULT_CONFIG);
+      } else if (DEFAULT_CONFIG.accessKeyId || import.meta.env.DEV) {
+        // Fallback: Manual credentials or dev mode
+        logDataOperation("useAWSConfig", "auto_configuration_manual_started");
+        configure(DEFAULT_CONFIG);
+      }
     }
   }, [isConfigured]);
 
