@@ -1,599 +1,250 @@
 // src/components/dashboard/AWSConfigDialog.tsx
-import { useState, useEffect } from "react";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import {
-  Settings,
-  AlertCircle,
-  CheckCircle,
-  Eye,
-  EyeOff,
-  TestTube,
-  RefreshCw,
-  Info,
-} from "lucide-react";
-import { logClick, logConfigChange, logDataOperation } from "@/lib/logger";
+import React, { useState } from "react";
+import type { AWSConfig } from "@/hooks/useAWSConfig";
 
 interface AWSConfigDialogProps {
-  isConfigured: boolean;
-  error: string | null;
-  onConfigure: (config: {
-    region: string;
-    accessKeyId?: string;
-    secretAccessKey?: string;
-    sessionToken?: string;
-    identityPoolId?: string;
-    userPoolId?: string;
-    userPoolWebClientId?: string;
-  }) => Promise<void>;
+  isOpen?: boolean;
+  onClose?: () => void;
+  onConfigure: (config: AWSConfig) => Promise<void>;
+  isLoading?: boolean;
+  error?: string | null;
+  isConfigured?: boolean;
   testConnection?: () => Promise<boolean>;
   getConnectionStatus?: () => Promise<string>;
 }
 
 export function AWSConfigDialog({
-  isConfigured,
-  error,
+  isOpen = false,
+  onClose = () => {},
   onConfigure,
-  testConnection,
-  getConnectionStatus,
-}: AWSConfigDialogProps) {
-  const [open, setOpen] = useState(false);
-  const [formData, setFormData] = useState({
+  isLoading = false,
+  error = null,
+}: AWSConfigDialogProps): React.JSX.Element | null {
+  const [formData, setFormData] = useState<AWSConfig>({
     region: "us-west-2",
     accessKeyId: "",
     secretAccessKey: "",
-    sessionToken: "",
-    identityPoolId: "",
-    userPoolId: "",
-    userPoolWebClientId: "",
   });
-  const [showSecrets, setShowSecrets] = useState({
-    secretAccessKey: false,
-    sessionToken: false,
-  });
-  const [isLoading, setIsLoading] = useState(false);
-  const [isTesting, setIsTesting] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState<string>("");
+  const [formErrors, setFormErrors] = useState<
+    Partial<Record<keyof AWSConfig, string>>
+  >({});
 
-  // Load existing environment variables on mount
-  useEffect(() => {
-    const envConfig = {
-      region: import.meta.env.VITE_AWS_REGION || "us-west-2",
-      accessKeyId: import.meta.env.VITE_AWS_ACCESS_KEY_ID || "",
-      secretAccessKey: import.meta.env.VITE_AWS_SECRET_ACCESS_KEY || "",
-      sessionToken: import.meta.env.VITE_AWS_SESSION_TOKEN || "",
-      identityPoolId: import.meta.env.VITE_AWS_IDENTITY_POOL_ID || "",
-      userPoolId: import.meta.env.VITE_AWS_USER_POOL_ID || "",
-      userPoolWebClientId:
-        import.meta.env.VITE_AWS_USER_POOL_WEB_CLIENT_ID || "",
-    };
+  if (!isOpen) return null;
 
-    setFormData(envConfig);
+  const validateForm = (): boolean => {
+    const errors: Partial<Record<keyof AWSConfig, string>> = {};
 
-    logDataOperation("AWSConfigDialog", "loaded_env_config", {
-      hasEnvAccessKeyId: !!envConfig.accessKeyId,
-      hasEnvSecretKey: !!envConfig.secretAccessKey,
-      hasEnvSessionToken: !!envConfig.sessionToken,
-      region: envConfig.region,
-    });
-  }, []);
-
-  // Update connection status when dialog opens
-  useEffect(() => {
-    if (open && getConnectionStatus) {
-      getConnectionStatus().then((status) => {
-        setConnectionStatus(status);
-        logDataOperation("AWSConfigDialog", "connection_status_checked", {
-          status,
-        });
-      });
+    if (!formData.region.trim()) {
+      errors.region = "Region is required";
     }
-  }, [open, getConnectionStatus]);
+
+    if (!formData.accessKeyId.trim()) {
+      errors.accessKeyId = "Access Key ID is required";
+    } else if (formData.accessKeyId.length < 16) {
+      errors.accessKeyId = "Access Key ID appears to be too short";
+    }
+
+    if (!formData.secretAccessKey.trim()) {
+      errors.secretAccessKey = "Secret Access Key is required";
+    } else if (formData.secretAccessKey.length < 32) {
+      errors.secretAccessKey = "Secret Access Key appears to be too short";
+    }
+
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
 
-    logDataOperation("AWSConfigDialog", "configuration_submit_started", {
-      hasAccessKeyId: !!formData.accessKeyId,
-      hasSecretKey: !!formData.secretAccessKey,
-      hasSessionToken: !!formData.sessionToken,
-      region: formData.region,
-    });
+    if (!validateForm()) {
+      return;
+    }
 
     try {
       await onConfigure(formData);
-
-      // Update connection status after configuration
-      if (getConnectionStatus) {
-        const newStatus = await getConnectionStatus();
-        setConnectionStatus(newStatus);
-      }
-
-      setOpen(false);
-      logDataOperation("AWSConfigDialog", "configuration_submit_completed");
+      onClose();
     } catch (err) {
+      // Error handling is managed by the parent component
       console.error("Configuration failed:", err);
-      logDataOperation("AWSConfigDialog", "configuration_submit_failed", {
-        error: err,
-      });
-    } finally {
-      setIsLoading(false);
     }
   };
 
-  const handleTestConnection = async () => {
-    if (!testConnection) return;
-
-    setIsTesting(true);
-    logDataOperation("AWSConfigDialog", "test_connection_started");
-
-    try {
-      const result = await testConnection();
-      const status = result ? "Connection successful!" : "Connection failed";
-      setConnectionStatus(status);
-
-      logDataOperation("AWSConfigDialog", "test_connection_completed", {
-        success: result,
-        status,
-      });
-    } catch (err) {
-      const errorStatus = `Test failed: ${err}`;
-      setConnectionStatus(errorStatus);
-      logDataOperation("AWSConfigDialog", "test_connection_error", {
-        error: err,
-      });
-    } finally {
-      setIsTesting(false);
+  const handleInputChange = (field: keyof AWSConfig, value: string) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+    // Clear field error when user starts typing
+    if (formErrors[field]) {
+      setFormErrors((prev) => ({ ...prev, [field]: undefined }));
     }
   };
-
-  const getStatusBadge = () => {
-    if (error) {
-      return (
-        <Badge variant="destructive" className="gap-1">
-          <AlertCircle className="h-3 w-3" />
-          Error
-        </Badge>
-      );
-    }
-
-    if (isConfigured) {
-      return (
-        <Badge variant="default" className="gap-1">
-          <CheckCircle className="h-3 w-3" />
-          Connected
-        </Badge>
-      );
-    }
-
-    return (
-      <Badge variant="outline" className="gap-1">
-        <Settings className="h-3 w-3" />
-        Not Configured
-      </Badge>
-    );
-  };
-
-  const toggleSecretVisibility = (field: keyof typeof showSecrets) => {
-    setShowSecrets((prev) => ({ ...prev, [field]: !prev[field] }));
-    logClick("AWSConfigDialog", `toggle_${field}_visibility`, {
-      field,
-      nowVisible: !showSecrets[field],
-    });
-  };
-
-  const getErrorAnalysis = (errorMessage: string) => {
-    if (errorMessage.includes("expired")) {
-      return {
-        type: "expired",
-        title: "Credentials Expired",
-        suggestions: [
-          "If using temporary credentials (session token), generate new ones",
-          "Check if your AWS access key has an expiration date in IAM",
-          "Verify your system clock is accurate (AWS is sensitive to time skew)",
-        ],
-      };
-    }
-
-    if (
-      errorMessage.includes("invalid") ||
-      errorMessage.includes("signature")
-    ) {
-      return {
-        type: "invalid",
-        title: "Invalid Credentials",
-        suggestions: [
-          "Double-check your Access Key ID for typos",
-          "Verify your Secret Access Key is correct",
-          "Make sure you're not mixing credentials from different AWS accounts",
-        ],
-      };
-    }
-
-    if (errorMessage.includes("access denied")) {
-      return {
-        type: "permissions",
-        title: "Permission Denied",
-        suggestions: [
-          "Check IAM permissions for DynamoDB access",
-          'Ensure your user/role has "dynamodb:Scan" permission',
-          'Verify the table "website-sitemaps" exists in your region',
-        ],
-      };
-    }
-
-    return {
-      type: "unknown",
-      title: "Unknown Error",
-      suggestions: [
-        "Check AWS service status for outages",
-        "Verify your region is correct",
-        "Try regenerating your access keys",
-      ],
-    };
-  };
-
-  const errorAnalysis = error ? getErrorAnalysis(error) : null;
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(newOpen) => {
-        setOpen(newOpen);
-        logClick(
-          "AWSConfigDialog",
-          newOpen ? "dialog_opened" : "dialog_closed",
-          {
-            isConfigured,
-            hasError: !!error,
-          },
-        );
-      }}
-    >
-      <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-2">
-          <Settings className="h-4 w-4" />
-          AWS Config
-          {getStatusBadge()}
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-xl font-semibold text-gray-900">
             AWS Configuration
-            {connectionStatus && (
-              <Badge
-                variant={
-                  connectionStatus.includes("successful") ||
-                  connectionStatus.includes("Connected")
-                    ? "default"
-                    : "secondary"
-                }
-                className="text-xs"
-              >
-                {connectionStatus}
-              </Badge>
-            )}
-          </DialogTitle>
-          <DialogDescription>
-            Configure your AWS credentials to access DynamoDB data. You can use
-            direct AWS credentials (Access Key + Secret + Session Token) or
-            Cognito Identity Pool for secure access.
-          </DialogDescription>
-        </DialogHeader>
-
-        {/* Connection Status and Test */}
-        <div className="flex gap-2 items-center">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={handleTestConnection}
-            disabled={isTesting || !testConnection}
-            className="gap-2"
+          </h2>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 transition-colors"
+            disabled={isLoading}
           >
-            {isTesting ? (
-              <RefreshCw className="h-4 w-4 animate-spin" />
-            ) : (
-              <TestTube className="h-4 w-4" />
-            )}
-            Test Connection
-          </Button>
-          {connectionStatus && (
-            <span className="text-sm text-muted-foreground">
-              Status: {connectionStatus}
-            </span>
-          )}
+            <svg
+              className="w-6 h-6"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
+          </button>
         </div>
 
-        {/* Enhanced Error Display */}
         {error && (
-          <div className="border border-destructive/20 rounded-md p-4 space-y-3">
-            <div className="flex items-center gap-2 text-destructive">
-              <AlertCircle className="h-4 w-4" />
-              <span className="font-medium">
-                {errorAnalysis?.title || "Configuration Error"}
-              </span>
-            </div>
-            <p className="text-sm text-destructive/80">{error}</p>
-
-            {errorAnalysis && (
-              <div className="space-y-2">
-                <p className="text-sm font-medium">Suggested fixes:</p>
-                <ul className="text-sm text-muted-foreground space-y-1">
-                  {errorAnalysis.suggestions.map((suggestion, index) => (
-                    <li key={index} className="flex items-start gap-2">
-                      <span className="text-destructive/60">•</span>
-                      <span>{suggestion}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
+            <p className="text-sm text-red-700">{error}</p>
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <label htmlFor="region" className="text-sm font-medium">
-              AWS Region *
+          <div>
+            <label
+              htmlFor="region"
+              className="block text-sm font-medium text-gray-700 mb-1"
+            >
+              AWS Region
             </label>
-            <Input
+            <select
               id="region"
-              placeholder="e.g., us-west-2"
               value={formData.region}
-              onChange={(e) => {
-                setFormData((prev) => ({ ...prev, region: e.target.value }));
-                logConfigChange(
-                  "AWSConfigDialog",
-                  "region_changed",
-                  e.target.value,
-                );
-              }}
-              required
+              onChange={(e) => handleInputChange("region", e.target.value)}
+              className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                formErrors.region ? "border-red-300" : "border-gray-300"
+              }`}
+              disabled={isLoading}
+            >
+              <option value="us-east-1">US East (N. Virginia)</option>
+              <option value="us-east-2">US East (Ohio)</option>
+              <option value="us-west-1">US West (N. California)</option>
+              <option value="us-west-2">US West (Oregon)</option>
+              <option value="eu-west-1">Europe (Ireland)</option>
+              <option value="eu-central-1">Europe (Frankfurt)</option>
+              <option value="ap-southeast-1">Asia Pacific (Singapore)</option>
+              <option value="ap-northeast-1">Asia Pacific (Tokyo)</option>
+            </select>
+            {formErrors.region && (
+              <p className="mt-1 text-sm text-red-600">{formErrors.region}</p>
+            )}
+          </div>
+
+          <div>
+            <label
+              htmlFor="accessKeyId"
+              className="block text-sm font-medium text-gray-700 mb-1"
+            >
+              Access Key ID
+            </label>
+            <input
+              type="text"
+              id="accessKeyId"
+              value={formData.accessKeyId}
+              onChange={(e) => handleInputChange("accessKeyId", e.target.value)}
+              placeholder="AKIAIOSFODNN7EXAMPLE"
+              className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                formErrors.accessKeyId ? "border-red-300" : "border-gray-300"
+              }`}
+              disabled={isLoading}
             />
-          </div>
-
-          {/* Direct AWS Credentials Section */}
-          <div className="border rounded-md p-4 space-y-4">
-            <h4 className="font-medium text-sm">
-              Option 1: Direct AWS Credentials
-            </h4>
-
-            <div className="space-y-2">
-              <label htmlFor="accessKeyId" className="text-sm font-medium">
-                AWS Access Key ID
-              </label>
-              <Input
-                id="accessKeyId"
-                placeholder="AKIA..."
-                value={formData.accessKeyId}
-                onChange={(e) => {
-                  setFormData((prev) => ({
-                    ...prev,
-                    accessKeyId: e.target.value,
-                  }));
-                  logConfigChange("AWSConfigDialog", "access_key_id_changed", {
-                    hasValue: !!e.target.value,
-                  });
-                }}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label htmlFor="secretAccessKey" className="text-sm font-medium">
-                AWS Secret Access Key
-              </label>
-              <div className="relative">
-                <Input
-                  id="secretAccessKey"
-                  type={showSecrets.secretAccessKey ? "text" : "password"}
-                  placeholder="Enter your secret access key"
-                  value={formData.secretAccessKey}
-                  onChange={(e) => {
-                    setFormData((prev) => ({
-                      ...prev,
-                      secretAccessKey: e.target.value,
-                    }));
-                    logConfigChange(
-                      "AWSConfigDialog",
-                      "secret_access_key_changed",
-                      { hasValue: !!e.target.value },
-                    );
-                  }}
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                  onClick={() => toggleSecretVisibility("secretAccessKey")}
-                >
-                  {showSecrets.secretAccessKey ? (
-                    <EyeOff className="h-4 w-4" />
-                  ) : (
-                    <Eye className="h-4 w-4" />
-                  )}
-                </Button>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <label
-                htmlFor="sessionToken"
-                className="text-sm font-medium flex items-center gap-2"
-              >
-                AWS Session Token (for temporary credentials)
-                <Info className="h-3 w-3 text-muted-foreground" />
-              </label>
-              <div className="relative">
-                <Input
-                  id="sessionToken"
-                  type={showSecrets.sessionToken ? "text" : "password"}
-                  placeholder="Enter your session token (if applicable)"
-                  value={formData.sessionToken}
-                  onChange={(e) => {
-                    setFormData((prev) => ({
-                      ...prev,
-                      sessionToken: e.target.value,
-                    }));
-                    logConfigChange(
-                      "AWSConfigDialog",
-                      "session_token_changed",
-                      { hasValue: !!e.target.value },
-                    );
-                  }}
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                  onClick={() => toggleSecretVisibility("sessionToken")}
-                >
-                  {showSecrets.sessionToken ? (
-                    <EyeOff className="h-4 w-4" />
-                  ) : (
-                    <Eye className="h-4 w-4" />
-                  )}
-                </Button>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Required if using temporary credentials (STS, MFA, etc.). These
-                typically expire after 1-12 hours.
+            {formErrors.accessKeyId && (
+              <p className="mt-1 text-sm text-red-600">
+                {formErrors.accessKeyId}
               </p>
-            </div>
+            )}
           </div>
 
-          {/* Cognito Section (Alternative) */}
-          <div className="border rounded-md p-4 space-y-4">
-            <h4 className="font-medium text-sm">
-              Option 2: Cognito Identity Pool (Alternative)
-            </h4>
-
-            <div className="space-y-2">
-              <label htmlFor="identityPoolId" className="text-sm font-medium">
-                Cognito Identity Pool ID
-              </label>
-              <Input
-                id="identityPoolId"
-                placeholder="e.g., us-west-2:xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-                value={formData.identityPoolId}
-                onChange={(e) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    identityPoolId: e.target.value,
-                  }))
-                }
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label htmlFor="userPoolId" className="text-sm font-medium">
-                Cognito User Pool ID
-              </label>
-              <Input
-                id="userPoolId"
-                placeholder="e.g., us-west-2_xxxxxxxxx"
-                value={formData.userPoolId}
-                onChange={(e) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    userPoolId: e.target.value,
-                  }))
-                }
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label
-                htmlFor="userPoolWebClientId"
-                className="text-sm font-medium"
-              >
-                Cognito App Client ID
-              </label>
-              <Input
-                id="userPoolWebClientId"
-                placeholder="e.g., xxxxxxxxxxxxxxxxxxxxxxxxxx"
-                value={formData.userPoolWebClientId}
-                onChange={(e) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    userPoolWebClientId: e.target.value,
-                  }))
-                }
-              />
-            </div>
+          <div>
+            <label
+              htmlFor="secretAccessKey"
+              className="block text-sm font-medium text-gray-700 mb-1"
+            >
+              Secret Access Key
+            </label>
+            <input
+              type="password"
+              id="secretAccessKey"
+              value={formData.secretAccessKey}
+              onChange={(e) =>
+                handleInputChange("secretAccessKey", e.target.value)
+              }
+              placeholder="wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+              className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                formErrors.secretAccessKey
+                  ? "border-red-300"
+                  : "border-gray-300"
+              }`}
+              disabled={isLoading}
+            />
+            {formErrors.secretAccessKey && (
+              <p className="mt-1 text-sm text-red-600">
+                {formErrors.secretAccessKey}
+              </p>
+            )}
           </div>
 
-          {/* Debugging Information */}
-          <div className="bg-muted/50 rounded-md p-3">
-            <h4 className="font-medium text-sm mb-2">Debugging Information</h4>
-            <div className="text-xs text-muted-foreground space-y-1">
-              <div>
-                Current Region: <code>{formData.region}</code>
-              </div>
-              <div>Has Access Key: {formData.accessKeyId ? "✓" : "✗"}</div>
-              <div>Has Secret Key: {formData.secretAccessKey ? "✓" : "✗"}</div>
-              <div>
-                Has Session Token:{" "}
-                {formData.sessionToken
-                  ? "✓ (temporary creds)"
-                  : "✗ (permanent creds)"}
-              </div>
-              <div>
-                Configuration Status:{" "}
-                {isConfigured ? "Configured" : "Not Configured"}
-              </div>
-              <div>Connection Status: {connectionStatus || "Unknown"}</div>
-            </div>
-          </div>
-
-          {/* Environment Variables Info */}
-          <div className="bg-muted/50 rounded-md p-3">
-            <h4 className="font-medium text-sm mb-2">
-              Environment Variables (Alternative)
-            </h4>
-            <div className="text-xs text-muted-foreground space-y-1">
-              <div>
-                <code>VITE_AWS_REGION</code> - AWS Region
-              </div>
-              <div>
-                <code>VITE_AWS_ACCESS_KEY_ID</code> - AWS Access Key ID
-              </div>
-              <div>
-                <code>VITE_AWS_SECRET_ACCESS_KEY</code> - AWS Secret Access Key
-              </div>
-              <div>
-                <code>VITE_AWS_SESSION_TOKEN</code> - AWS Session Token
-              </div>
-            </div>
-          </div>
-
-          <div className="flex justify-end gap-2 pt-4">
-            <Button
+          <div className="flex justify-end space-x-3 pt-4">
+            <button
               type="button"
-              variant="outline"
-              onClick={() => setOpen(false)}
+              onClick={onClose}
+              disabled={isLoading}
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Cancel
-            </Button>
-            <Button type="submit" disabled={isLoading}>
-              {isLoading ? "Configuring..." : "Save Configuration"}
-            </Button>
+            </button>
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+            >
+              {isLoading && (
+                <svg
+                  className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  ></circle>
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  ></path>
+                </svg>
+              )}
+              {isLoading ? "Configuring..." : "Configure"}
+            </button>
           </div>
         </form>
-      </DialogContent>
-    </Dialog>
+
+        <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+          <p className="text-xs text-yellow-700">
+            <strong>Note:</strong> Your credentials are stored locally and used
+            only to access your AWS DynamoDB table. For production deployments,
+            consider using environment variables instead.
+          </p>
+        </div>
+      </div>
+    </div>
   );
 }

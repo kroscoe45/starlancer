@@ -2,22 +2,16 @@
 import { useEffect, useState, useRef } from "react";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, ScanCommand } from "@aws-sdk/lib-dynamodb";
-import { fromCognitoIdentityPool } from "@aws-sdk/credential-providers";
 import {
   dashboardLogger,
   logConfigChange,
   logDataOperation,
 } from "@/lib/logger";
 
-interface AWSConfig {
+export interface AWSConfig {
   region: string;
-  accessKeyId?: string;
-  secretAccessKey?: string;
-  sessionToken?: string;
-  // Legacy Cognito support (optional)
-  identityPoolId?: string;
-  userPoolId?: string;
-  userPoolWebClientId?: string;
+  accessKeyId: string;
+  secretAccessKey: string;
 }
 
 interface UseAWSConfigReturn {
@@ -29,15 +23,11 @@ interface UseAWSConfigReturn {
   getConnectionStatus: () => Promise<string>;
 }
 
-// Default configuration - prioritizes environment variables for zero-config
+// Single configuration source - environment variables
 const DEFAULT_CONFIG: AWSConfig = {
   region: import.meta.env.VITE_AWS_REGION || "us-west-2",
-  accessKeyId: import.meta.env.VITE_AWS_ACCESS_KEY_ID,
-  secretAccessKey: import.meta.env.VITE_AWS_SECRET_ACCESS_KEY,
-  sessionToken: import.meta.env.VITE_AWS_SESSION_TOKEN,
-  identityPoolId: import.meta.env.VITE_AWS_IDENTITY_POOL_ID,
-  userPoolId: import.meta.env.VITE_AWS_USER_POOL_ID,
-  userPoolWebClientId: import.meta.env.VITE_AWS_USER_POOL_WEB_CLIENT_ID,
+  accessKeyId: import.meta.env.VITE_AWS_ACCESS_KEY_ID || "",
+  secretAccessKey: import.meta.env.VITE_AWS_SECRET_ACCESS_KEY || "",
 };
 
 export function useAWSConfig(): UseAWSConfigReturn {
@@ -49,16 +39,13 @@ export function useAWSConfig(): UseAWSConfigReturn {
 
   const parseAWSError = (error: any): string => {
     if (error?.name === "ExpiredTokenException") {
-      return "AWS session token has expired. Please refresh your temporary credentials.";
+      return "AWS session token has expired. Please refresh your credentials.";
     }
     if (error?.name === "InvalidSignatureException") {
       return "AWS credentials are invalid. Please check your Access Key ID and Secret Access Key.";
     }
     if (error?.name === "SignatureDoesNotMatchException") {
       return "AWS signature mismatch. Please verify your Secret Access Key is correct.";
-    }
-    if (error?.name === "TokenRefreshRequiredException") {
-      return "AWS token needs to be refreshed. Please update your session token.";
     }
     if (error?.name === "UnrecognizedClientException") {
       return "AWS credentials not recognized. Please check your Access Key ID.";
@@ -88,7 +75,7 @@ export function useAWSConfig(): UseAWSConfigReturn {
     try {
       logDataOperation("useAWSConfig", "test_connection_started");
 
-      // Try to list tables or scan a small amount from a known table
+      // Try to scan a small amount from the sitemap table
       const tableName =
         import.meta.env.VITE_SITEMAP_TABLE_NAME || "website-sitemaps";
       const command = new ScanCommand({
@@ -111,8 +98,6 @@ export function useAWSConfig(): UseAWSConfigReturn {
           configRegion: configRef.current.region,
           hasAccessKeyId: !!configRef.current.accessKeyId,
           hasSecretKey: !!configRef.current.secretAccessKey,
-          hasSessionToken: !!configRef.current.sessionToken,
-          hasIdentityPoolId: !!configRef.current.identityPoolId,
         },
       );
       return false;
@@ -138,6 +123,14 @@ export function useAWSConfig(): UseAWSConfigReturn {
       const oldConfig = { ...configRef.current };
       configRef.current = { ...DEFAULT_CONFIG, ...config };
 
+      // Validate required credentials
+      if (
+        !configRef.current.accessKeyId ||
+        !configRef.current.secretAccessKey
+      ) {
+        throw new Error("Access Key ID and Secret Access Key are required");
+      }
+
       logConfigChange(
         "useAWSConfig",
         "credentials_updated",
@@ -145,59 +138,24 @@ export function useAWSConfig(): UseAWSConfigReturn {
           region: configRef.current.region,
           hasAccessKeyId: !!configRef.current.accessKeyId,
           hasSecretKey: !!configRef.current.secretAccessKey,
-          hasSessionToken: !!configRef.current.sessionToken,
-          hasIdentityPoolId: !!configRef.current.identityPoolId,
-          configurationMethod: configRef.current.identityPoolId
-            ? "cognito_identity_pool"
-            : configRef.current.accessKeyId
-              ? "static_credentials"
-              : "default_chain",
+          configurationMethod: "static_credentials",
         },
         {
           region: oldConfig.region,
           hasAccessKeyId: !!oldConfig.accessKeyId,
           hasSecretKey: !!oldConfig.secretAccessKey,
-          hasSessionToken: !!oldConfig.sessionToken,
-          hasIdentityPoolId: !!oldConfig.identityPoolId,
         },
       );
 
-      // Create credentials provider
-      let credentials;
+      // Create credentials object
+      const credentials = {
+        accessKeyId: configRef.current.accessKeyId,
+        secretAccessKey: configRef.current.secretAccessKey,
+      };
 
-      if (configRef.current.identityPoolId) {
-        // Use Cognito Identity Pool (zero-config approach)
-        credentials = fromCognitoIdentityPool({
-          identityPoolId: configRef.current.identityPoolId,
-          clientConfig: { region: configRef.current.region },
-        });
-
-        logDataOperation("useAWSConfig", "using_cognito_identity_pool", {
-          identityPoolId: configRef.current.identityPoolId,
-          region: configRef.current.region,
-        });
-      } else if (
-        configRef.current.accessKeyId &&
-        configRef.current.secretAccessKey
-      ) {
-        // Use static credentials (Access Key + Secret + optional Session Token)
-        credentials = {
-          accessKeyId: configRef.current.accessKeyId,
-          secretAccessKey: configRef.current.secretAccessKey,
-          sessionToken: configRef.current.sessionToken, // Optional, for temporary credentials
-        };
-
-        logDataOperation("useAWSConfig", "using_static_credentials", {
-          hasSessionToken: !!configRef.current.sessionToken,
-          credentialType: configRef.current.sessionToken
-            ? "temporary"
-            : "permanent",
-        });
-      } else {
-        // Fallback to environment variables or IAM role (for development)
-        credentials = undefined; // Will use default credential chain
-        logDataOperation("useAWSConfig", "using_default_credential_chain");
-      }
+      logDataOperation("useAWSConfig", "using_static_credentials", {
+        credentialType: "permanent",
+      });
 
       // Create DynamoDB client
       const dbClient = new DynamoDBClient({
@@ -223,21 +181,23 @@ export function useAWSConfig(): UseAWSConfigReturn {
 
       // Test the connection immediately
       logDataOperation("useAWSConfig", "testing_new_configuration");
-      const testResult = await testConnection();
 
-      if (testResult) {
-        setIsConfigured(true);
-        logDataOperation("useAWSConfig", "configuration_successful");
-      } else {
-        setIsConfigured(false);
-        setError(
-          "Configuration saved but connection test failed. Please check your credentials and permissions.",
-        );
-      }
+      // Create a test client to avoid chicken-and-egg with testConnection
+      const testCommand = new ScanCommand({
+        TableName:
+          import.meta.env.VITE_SITEMAP_TABLE_NAME || "website-sitemaps",
+        Limit: 1,
+      });
+
+      await docClient.send(testCommand);
+
+      setIsConfigured(true);
+      logDataOperation("useAWSConfig", "configuration_successful");
     } catch (err) {
       const errorMessage = parseAWSError(err);
       setError(errorMessage);
       setIsConfigured(false);
+      setDynamoClient(null);
 
       dashboardLogger.logError(
         "useAWSConfig",
@@ -248,33 +208,26 @@ export function useAWSConfig(): UseAWSConfigReturn {
           configRegion: configRef.current.region,
           hasAccessKeyId: !!configRef.current.accessKeyId,
           hasSecretKey: !!configRef.current.secretAccessKey,
-          hasSessionToken: !!configRef.current.sessionToken,
-          hasIdentityPoolId: !!configRef.current.identityPoolId,
         },
       );
     }
   };
 
-  // Auto-configure on mount - prioritize Cognito Identity Pool for zero-config
+  // Auto-configure on mount if environment variables are available
   useEffect(() => {
     logDataOperation("useAWSConfig", "hook_mounted", {
       hasEnvAccessKeyId: !!DEFAULT_CONFIG.accessKeyId,
       hasEnvSecretKey: !!DEFAULT_CONFIG.secretAccessKey,
-      hasEnvSessionToken: !!DEFAULT_CONFIG.sessionToken,
-      hasEnvIdentityPoolId: !!DEFAULT_CONFIG.identityPoolId,
       region: DEFAULT_CONFIG.region,
     });
 
-    if (!isConfigured) {
-      if (DEFAULT_CONFIG.identityPoolId) {
-        // Zero-config mode: Cognito Identity Pool is available
-        logDataOperation("useAWSConfig", "auto_configuration_cognito_started");
-        configure(DEFAULT_CONFIG);
-      } else if (DEFAULT_CONFIG.accessKeyId || import.meta.env.DEV) {
-        // Fallback: Manual credentials or dev mode
-        logDataOperation("useAWSConfig", "auto_configuration_manual_started");
-        configure(DEFAULT_CONFIG);
-      }
+    if (
+      !isConfigured &&
+      DEFAULT_CONFIG.accessKeyId &&
+      DEFAULT_CONFIG.secretAccessKey
+    ) {
+      logDataOperation("useAWSConfig", "auto_configuration_started");
+      configure(DEFAULT_CONFIG);
     }
   }, [isConfigured]);
 
