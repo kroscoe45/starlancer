@@ -11,12 +11,33 @@ import {
 } from "@/components/ui/tooltip";
 import { useTheme } from "../ThemeProvider";
 import { Moon, Sun } from "lucide-react";
+import { useCallback, useEffect } from "react";
+import {
+  logClick,
+  logConfigChange,
+  dashboardLogger,
+  InteractionType,
+} from "@/lib/logger";
 
 export function Header() {
   const { theme, toggleTheme } = useTheme();
 
   // Mock AWS status - replace with real data
   const awsStatus = "healthy"; // 'healthy' | 'warning' | 'error'
+
+  // Log component mount and theme on load
+  useEffect(() => {
+    dashboardLogger.logInteraction(
+      "Header",
+      "component_mounted",
+      InteractionType.NAVIGATION,
+      {
+        currentTheme: theme,
+        awsStatus,
+        timestamp: new Date().toISOString(),
+      },
+    );
+  }, [theme, awsStatus]);
 
   const getStatusConfig = (status: string) => {
     switch (status) {
@@ -45,42 +66,108 @@ export function Header() {
 
   const statusConfig = getStatusConfig(awsStatus);
 
+  // Handle theme toggle with logging
+  const handleThemeToggle = useCallback(() => {
+    const oldTheme = theme;
+
+    logClick("Header", "theme_toggle_button", {
+      currentTheme: oldTheme,
+      willToggleTo: oldTheme === "light" ? "dark" : "light",
+    });
+
+    toggleTheme();
+
+    // Log the actual change after toggle
+    setTimeout(() => {
+      logConfigChange(
+        "Header",
+        "theme",
+        oldTheme === "light" ? "dark" : "light",
+        oldTheme,
+      );
+    }, 0);
+  }, [theme, toggleTheme]);
+
+  // Handle sidebar trigger with logging
+  const handleSidebarTrigger = useCallback(() => {
+    logClick("Header", "sidebar_trigger", {
+      currentTheme: theme,
+      timestamp: new Date().toISOString(),
+    });
+  }, [theme]);
+
+  // Handle status badge click (for potential future functionality)
+  const handleStatusBadgeClick = useCallback(() => {
+    logClick("Header", "status_badge_clicked", {
+      status: awsStatus,
+      statusText: statusConfig.text,
+      variant: statusConfig.variant,
+    });
+  }, [awsStatus, statusConfig]);
+
   return (
-    <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <SidebarTrigger className="-ml-1" />
-          </TooltipTrigger>
-          <TooltipContent>
-            <p>Toggle Sidebar (Ctrl+B)</p>
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
-      <Separator orientation="vertical" className="mr-2 h-4" />
+    <div className="sticky top-4 z-50 px-4">
+      <header className="flex h-16 shrink-0 items-center gap-2 border px-4 bg-background/80 backdrop-blur-md rounded-full shadow-lg mx-auto max-w-full">
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div onClick={handleSidebarTrigger}>
+                <SidebarTrigger className="-ml-1" />
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Toggle Sidebar (Ctrl+B)</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+        <Separator orientation="vertical" className="mr-2 h-4" />
 
-      <div className="flex flex-1 items-center justify-between">
-        <div className="flex items-center gap-2">
-          <h1 className="text-lg font-semibold">AWS Scraper Dashboard</h1>
-          <Badge variant={statusConfig.variant}>{statusConfig.text}</Badge>
-        </div>
+        <div className="flex flex-1 items-center justify-between">
+          <div className="flex items-center gap-2">
+            <h1
+              className="text-lg font-semibold cursor-pointer"
+              onClick={() =>
+                logClick("Header", "title_clicked", { currentTheme: theme })
+              }
+            >
+              AWS Scraper Dashboard
+            </h1>
+            <div onClick={handleStatusBadgeClick}>
+              <Badge
+                variant={statusConfig.variant}
+                className="cursor-pointer hover:opacity-80 transition-opacity"
+              >
+                {statusConfig.text}
+              </Badge>
+            </div>
+          </div>
 
-        <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={toggleTheme}
-            className="h-9 w-9"
-          >
-            {theme === "light" ? (
-              <Moon className="h-4 w-4" />
-            ) : (
-              <Sun className="h-4 w-4" />
-            )}
-            <span className="sr-only">Toggle theme</span>
-          </Button>
+          <div className="flex items-center gap-2">
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={handleThemeToggle}
+                    className="h-9 w-9"
+                  >
+                    {theme === "light" ? (
+                      <Moon className="h-4 w-4" />
+                    ) : (
+                      <Sun className="h-4 w-4" />
+                    )}
+                    <span className="sr-only">Toggle theme</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Switch to {theme === "light" ? "dark" : "light"} mode</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
         </div>
-      </div>
-    </header>
+      </header>
+    </div>
   );
 }

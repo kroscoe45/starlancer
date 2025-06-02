@@ -1,5 +1,5 @@
 // src/components/dashboard/ScraperVisualization.tsx
-import { useCallback, useState, useRef } from "react";
+import { useCallback, useState, useRef, useEffect, useMemo } from "react";
 import ForceGraph2D from "react-force-graph-2d";
 import { useUnifiedDataStore } from "@/hooks/useUnifiedDataStore";
 import { useAWSConfig } from "@/hooks/useAWSConfig";
@@ -13,6 +13,12 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Database, TestTube, RefreshCw, Info } from "lucide-react";
+import {
+  logClick,
+  logDataOperation,
+  logVisualizationInteraction,
+  dashboardLogger,
+} from "@/lib/logger";
 
 // Types for scraper data
 interface ScrapedPage {
@@ -61,6 +67,8 @@ interface GraphData {
 
 export function ScraperVisualization() {
   const [selectedWebsite, setSelectedWebsite] = useState<string | null>(null);
+  const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
+  const containerRef = useRef<HTMLDivElement>(null);
   const fgRef = useRef<any>(null);
 
   // Use unified data store
@@ -68,11 +76,105 @@ export function ScraperVisualization() {
     useUnifiedDataStore();
 
   // Use AWS config for configuration dialog
-  const { isConfigured, error: configError, configure } = useAWSConfig();
+  const {
+    isConfigured,
+    error: configError,
+    configure,
+    testConnection,
+    getConnectionStatus,
+  } = useAWSConfig();
 
-  // Transform unified data to internal format
+  // Log component mount
+  useEffect(() => {
+    logVisualizationInteraction("ScraperVisualization", "component_mounted", {
+      hasAWSConfig: isConfigured,
+      websiteCount: websites.length,
+    });
+  }, []);
+
+  // Set initial dimensions
+  useEffect(() => {
+    if (containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      setDimensions({
+        width: Math.round(rect.width),
+        height: Math.round(rect.height),
+      });
+    }
+  }, []);
+
+  // Handle container resize
+  useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+
+    const handleResize = () => {
+      if (containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        const newDimensions = {
+          width: Math.round(rect.width),
+          height: Math.round(rect.height),
+        };
+
+        // Only update if dimensions actually changed significantly (avoid sub-pixel changes)
+        setDimensions((currentDims) => {
+          const widthDiff = Math.abs(newDimensions.width - currentDims.width);
+          const heightDiff = Math.abs(
+            newDimensions.height - currentDims.height,
+          );
+
+          if (widthDiff > 1 || heightDiff > 1) {
+            // Debounce logging to avoid spam
+            clearTimeout(timeoutId);
+            timeoutId = setTimeout(() => {
+              logVisualizationInteraction(
+                "ScraperVisualization",
+                "canvas_resized",
+                {
+                  oldDimensions: currentDims,
+                  newDimensions,
+                  triggerType: "resize_observer",
+                  widthDiff,
+                  heightDiff,
+                },
+              );
+            }, 100);
+
+            return newDimensions;
+          }
+          return currentDims;
+        });
+      }
+    };
+
+    // Add resize observer for responsive updates
+    const resizeObserver = new ResizeObserver(handleResize);
+    if (containerRef.current) {
+      resizeObserver.observe(containerRef.current);
+    }
+
+    // Fallback resize listener
+    const debouncedWindowResize = () => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(handleResize, 50);
+    };
+    window.addEventListener("resize", debouncedWindowResize);
+
+    return () => {
+      clearTimeout(timeoutId);
+      resizeObserver.disconnect();
+      window.removeEventListener("resize", debouncedWindowResize);
+    };
+  }, []); // No dependencies to prevent infinite loop
+
+  // Transform unified data to internal format (with memoization to prevent unnecessary recalculations)
   const transformToWebsiteSessions = useCallback(
     (unifiedData: UnifiedWebsiteData[]): Map<string, WebsiteSession> => {
+      // Skip transformation if data hasn't changed
+      if (unifiedData.length === 0) {
+        return new Map();
+      }
+
+      const startTime = performance.now();
       const websiteMap = new Map<string, WebsiteSession>();
 
       unifiedData.forEach((websiteData) => {
@@ -142,25 +244,54 @@ export function ScraperVisualization() {
         websiteMap.set(domain, websiteSession);
       });
 
+      const duration = performance.now() - startTime;
+      if (duration > 1) {
+        // Only log if it takes more than 1ms
+        dashboardLogger.logPerformance(
+          "ScraperVisualization",
+          "transform_data",
+          duration,
+          {
+            inputDataCount: unifiedData.length,
+            outputWebsiteCount: websiteMap.size,
+            totalPages: Array.from(websiteMap.values()).reduce(
+              (sum, ws) => sum + ws.pages.size,
+              0,
+            ),
+          },
+        );
+      }
+
       return websiteMap;
     },
-    [],
+    [], // No dependencies to prevent unnecessary recalculations
   );
 
-  // Convert unified data to website sessions
-  const websiteSessions = transformToWebsiteSessions(websites);
+  // Convert unified data to website sessions (memoized)
+  const websiteSessions = useMemo(
+    () => transformToWebsiteSessions(websites),
+    [websites, transformToWebsiteSessions],
+  );
 
   // Auto-select first website when data changes
-  useState(() => {
+  useEffect(() => {
     if (websiteSessions.size > 0 && !selectedWebsite) {
       const firstWebsite = websiteSessions.keys().next().value;
       if (firstWebsite) {
         setSelectedWebsite(firstWebsite);
+        logVisualizationInteraction(
+          "ScraperVisualization",
+          "auto_select_website",
+          {
+            selectedWebsite: firstWebsite,
+            totalWebsites: websiteSessions.size,
+          },
+        );
       }
     } else if (websiteSessions.size === 0) {
       setSelectedWebsite(null);
     }
-  });
+  }, [websiteSessions, selectedWebsite]);
 
   // Get current website data for visualization
   const currentWebsite = selectedWebsite
@@ -183,9 +314,10 @@ export function ScraperVisualization() {
     }
   }, []);
 
-  // Convert website pages to force graph data
+  // Convert website pages to force graph data (memoized)
   const getGraphData = useCallback(
     (website: WebsiteSession): GraphData => {
+      const startTime = performance.now();
       const pages = Array.from(website.pages.values());
 
       const nodes: GraphNode[] = pages.map((page) => ({
@@ -206,20 +338,154 @@ export function ScraperVisualization() {
           })),
       );
 
+      const duration = performance.now() - startTime;
+      // Only log performance for meaningful processing times or large datasets
+      if (duration > 5 || nodes.length > 50) {
+        dashboardLogger.logPerformance(
+          "ScraperVisualization",
+          "generate_graph_data",
+          duration,
+          {
+            websiteDomain: website.domain,
+            nodeCount: nodes.length,
+            linkCount: links.length,
+            homepageCount: nodes.filter((n) => n.isHomepage).length,
+          },
+        );
+      }
+
       return { nodes, links };
     },
     [getStatusColor],
   );
 
-  const graphData = currentWebsite
-    ? getGraphData(currentWebsite)
-    : { nodes: [], links: [] };
+  const graphData = useMemo(
+    () =>
+      currentWebsite ? getGraphData(currentWebsite) : { nodes: [], links: [] },
+    [currentWebsite, getGraphData],
+  );
 
   // Handle node click
-  const handleNodeClick = useCallback((node: GraphNode | null) => {
-    if (!node) return;
-    console.log("Clicked node:", node);
-  }, []);
+  const handleNodeClick = useCallback(
+    (node: GraphNode | null) => {
+      if (!node) return;
+
+      logVisualizationInteraction("ScraperVisualization", "node_clicked", {
+        nodeId: node.id,
+        nodeName: node.name,
+        nodeStatus: node.status,
+        isHomepage: node.isHomepage,
+        websiteDomain: currentWebsite?.domain,
+      });
+
+      console.log("Clicked node:", node);
+    },
+    [currentWebsite],
+  );
+
+  // Handle button clicks with proper event handling and logging
+  const handleButtonClick = useCallback(
+    (
+      e: React.MouseEvent,
+      action: () => void,
+      actionName: string,
+      actionData?: any,
+    ) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      logClick("ScraperVisualization", actionName, {
+        ...actionData,
+        hasCurrentWebsite: !!currentWebsite,
+        websiteCount: websiteSessions.size,
+        isConfigured,
+        loading,
+      });
+
+      action();
+    },
+    [currentWebsite, websiteSessions.size, isConfigured, loading],
+  );
+
+  // Handle website selection
+  const handleWebsiteSelection = useCallback(
+    (websiteId: string) => {
+      const previousWebsite = selectedWebsite;
+      setSelectedWebsite(websiteId);
+
+      logClick("ScraperVisualization", "website_selector", {
+        previousWebsite,
+        newWebsite: websiteId,
+        websiteData: websiteId
+          ? {
+              domain: websiteSessions.get(websiteId)?.domain,
+              pageCount: websiteSessions.get(websiteId)?.pages.size,
+              source: websiteSessions.get(websiteId)?.source,
+              artistName: websiteSessions.get(websiteId)?.artistName,
+            }
+          : null,
+      });
+    },
+    [selectedWebsite, websiteSessions],
+  );
+
+  // Handle AWS data loading with logging
+  const handleLoadAWSData = useCallback(async () => {
+    const startTime = performance.now();
+    logDataOperation("ScraperVisualization", "load_aws_data_started", {
+      isConfigured,
+      currentWebsiteCount: websites.length,
+    });
+
+    try {
+      await loadAWSData();
+      const duration = performance.now() - startTime;
+      dashboardLogger.logPerformance(
+        "ScraperVisualization",
+        "load_aws_data_completed",
+        duration,
+      );
+    } catch (error) {
+      dashboardLogger.logError(
+        "ScraperVisualization",
+        "load_aws_data_failed",
+        error as Error,
+        {
+          duration: performance.now() - startTime,
+          isConfigured,
+        },
+      );
+    }
+  }, [loadAWSData, isConfigured, websites.length]);
+
+  // Handle refresh with logging
+  const handleRefreshData = useCallback(async () => {
+    const startTime = performance.now();
+    logDataOperation("ScraperVisualization", "refresh_data_started", {
+      currentWebsiteCount: websites.length,
+      hasAWSData: websites.some((w) => w.source === "aws"),
+      hasMockData: websites.some((w) => w.source === "mock"),
+    });
+
+    try {
+      await refreshData();
+      const duration = performance.now() - startTime;
+      dashboardLogger.logPerformance(
+        "ScraperVisualization",
+        "refresh_data_completed",
+        duration,
+      );
+    } catch (error) {
+      dashboardLogger.logError(
+        "ScraperVisualization",
+        "refresh_data_failed",
+        error as Error,
+        {
+          duration: performance.now() - startTime,
+        },
+      );
+    }
+  }, [refreshData, websites]);
 
   // Get data source info
   const getDataSourceInfo = () => {
@@ -238,11 +504,34 @@ export function ScraperVisualization() {
 
   const dataSourceInfo = getDataSourceInfo();
 
+  // Log graph engine events
+  const handleEngineStop = useCallback(() => {
+    logVisualizationInteraction(
+      "ScraperVisualization",
+      "graph_engine_stopped",
+      {
+        nodeCount: graphData.nodes.length,
+        linkCount: graphData.links.length,
+        websiteDomain: currentWebsite?.domain,
+      },
+    );
+
+    if (fgRef.current) {
+      fgRef.current.zoomToFit(400);
+      logVisualizationInteraction("ScraperVisualization", "auto_zoom_to_fit", {
+        zoomPadding: 400,
+      });
+    }
+  }, [graphData, currentWebsite]);
+
   return (
-    <div className="w-full h-[600px] bg-slate-900 rounded-lg border relative overflow-hidden">
+    <div
+      ref={containerRef}
+      className="w-full h-[600px] bg-slate-900 rounded-lg border relative overflow-hidden"
+    >
       {/* Loading State */}
       {loading && (
-        <div className="absolute inset-0 bg-slate-900/80 flex items-center justify-center z-20">
+        <div className="absolute inset-0 bg-slate-900/80 flex items-center justify-center z-30">
           <div className="text-white text-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto mb-2">
               <RefreshCw className="h-8 w-8" />
@@ -254,7 +543,7 @@ export function ScraperVisualization() {
 
       {/* Error State */}
       {error && (
-        <div className="absolute inset-0 bg-slate-900/80 flex items-center justify-center z-20">
+        <div className="absolute inset-0 bg-slate-900/80 flex items-center justify-center z-30">
           <div className="text-white text-center p-4">
             <p className="text-red-400 mb-4">Error: {error}</p>
             <div className="flex gap-2 justify-center">
@@ -263,10 +552,22 @@ export function ScraperVisualization() {
                   isConfigured={isConfigured}
                   error={configError}
                   onConfigure={configure}
+                  testConnection={testConnection}
+                  getConnectionStatus={getConnectionStatus}
                 />
               )}
               {isConfigured && (
-                <Button onClick={loadAWSData} className="gap-2">
+                <Button
+                  onClick={(e) =>
+                    handleButtonClick(
+                      e,
+                      handleLoadAWSData,
+                      "retry_aws_button",
+                      { error },
+                    )
+                  }
+                  className="gap-2"
+                >
                   <RefreshCw className="h-4 w-4" />
                   Retry AWS
                 </Button>
@@ -276,22 +577,31 @@ export function ScraperVisualization() {
         </div>
       )}
 
-      {/* Controls */}
-      <div className="absolute top-4 left-4 z-10 flex gap-2">
+      {/* Controls - Higher z-index and proper event handling */}
+      <div className="absolute top-4 left-4 z-40 flex gap-2 pointer-events-auto">
         {/* AWS Configuration */}
-        <AWSConfigDialog
-          isConfigured={isConfigured}
-          error={configError}
-          onConfigure={configure}
-        />
+        <div onClick={(e) => e.stopPropagation()}>
+          <AWSConfigDialog
+            isConfigured={isConfigured}
+            error={configError}
+            onConfigure={configure}
+            testConnection={testConnection}
+            getConnectionStatus={getConnectionStatus}
+          />
+        </div>
 
         {/* Load AWS Data Button */}
         <Button
-          onClick={loadAWSData}
+          onClick={(e) =>
+            handleButtonClick(e, handleLoadAWSData, "load_aws_button", {
+              isConfigured,
+              currentDataSource: dataSourceInfo.type,
+            })
+          }
           disabled={loading || !isConfigured}
           size="sm"
           variant="outline"
-          className="bg-black/50 border-white/20 text-white hover:bg-black/70 gap-2"
+          className="bg-black/50 border-white/20 text-white hover:bg-black/70 gap-2 pointer-events-auto"
         >
           <Database className="h-4 w-4" />
           Load AWS Data
@@ -300,8 +610,9 @@ export function ScraperVisualization() {
         {/* Website Selector */}
         <select
           value={selectedWebsite || ""}
-          onChange={(e) => setSelectedWebsite(e.target.value)}
-          className="bg-black/50 text-white border border-white/20 rounded px-3 py-1 text-sm backdrop-blur-sm"
+          onChange={(e) => handleWebsiteSelection(e.target.value)}
+          onClick={(e) => e.stopPropagation()}
+          className="bg-black/50 text-white border border-white/20 rounded px-3 py-1 text-sm backdrop-blur-sm pointer-events-auto"
           disabled={loading || websiteSessions.size === 0}
         >
           <option value="">Select website...</option>
@@ -314,22 +625,33 @@ export function ScraperVisualization() {
 
         {/* Refresh Button */}
         <Button
-          onClick={refreshData}
+          onClick={(e) =>
+            handleButtonClick(e, handleRefreshData, "refresh_button", {
+              dataSourceInfo,
+            })
+          }
           disabled={loading}
           size="sm"
           variant="outline"
-          className="bg-black/50 border-white/20 text-white hover:bg-black/70"
+          className="bg-black/50 border-white/20 text-white hover:bg-black/70 pointer-events-auto"
         >
           <RefreshCw className="h-4 w-4" />
         </Button>
       </div>
 
       {/* Data Source Info */}
-      <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
+      <div className="absolute top-4 right-4 z-40 flex items-center gap-2 pointer-events-auto">
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <div className="flex items-center gap-2 bg-black/50 text-white rounded px-2 py-1 text-sm backdrop-blur-sm">
+              <div
+                className="flex items-center gap-2 bg-black/50 text-white rounded px-2 py-1 text-sm backdrop-blur-sm pointer-events-auto"
+                onClick={() =>
+                  logClick("ScraperVisualization", "data_source_info_clicked", {
+                    dataSourceInfo,
+                  })
+                }
+              >
                 {dataSourceInfo.type === "aws" && (
                   <Database className="h-4 w-4" />
                 )}
@@ -368,9 +690,21 @@ export function ScraperVisualization() {
       </div>
 
       {/* Stats Overlay */}
-      <div className="absolute bottom-4 right-4 z-10 bg-black/50 text-white rounded p-3 text-sm backdrop-blur-sm">
+      <div className="absolute bottom-4 right-4 z-40 bg-black/50 text-white rounded p-3 text-sm backdrop-blur-sm pointer-events-auto">
         {currentWebsite && (
-          <div className="space-y-1">
+          <div
+            className="space-y-1"
+            onClick={() =>
+              logClick("ScraperVisualization", "stats_overlay_clicked", {
+                websiteDomain: currentWebsite.domain,
+                stats: {
+                  pages: currentWebsite.pages.size,
+                  status: currentWebsite.status,
+                  source: currentWebsite.source,
+                },
+              })
+            }
+          >
             <div>Domain: {currentWebsite.domain}</div>
             <div>Pages: {currentWebsite.pages.size}</div>
             <div>Status: {currentWebsite.status}</div>
@@ -395,8 +729,15 @@ export function ScraperVisualization() {
       </div>
 
       {/* Legend */}
-      <div className="absolute bottom-4 left-4 z-10 bg-black/50 text-white rounded p-3 text-xs backdrop-blur-sm">
-        <div className="space-y-1">
+      <div className="absolute bottom-4 left-4 z-40 bg-black/50 text-white rounded p-3 text-xs backdrop-blur-sm pointer-events-auto">
+        <div
+          className="space-y-1"
+          onClick={() =>
+            logClick("ScraperVisualization", "legend_clicked", {
+              dataSourceInfo,
+            })
+          }
+        >
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded-full bg-green-400"></div>
             <span>Completed</span>
@@ -417,31 +758,36 @@ export function ScraperVisualization() {
         </div>
       </div>
 
-      {/* Force Graph */}
+      {/* Force Graph - Lower z-index, responsive dimensions */}
       {!loading && !error && websiteSessions.size > 0 && (
-        <ForceGraph2D
-          ref={fgRef}
-          graphData={graphData}
-          width={800}
-          height={600}
-          backgroundColor="#0f172a"
-          enablePointerInteraction={true}
-          enableNodeDrag={true}
-          enableZoomInteraction={true}
-          enablePanInteraction={true}
-          d3VelocityDecay={0.4}
-          nodeColor={(node: GraphNode) => node.color}
-          nodeVal={(node: GraphNode) => node.val}
-          nodeLabel={(node: GraphNode) => node.name}
-          linkColor={() => "#ffffff25"}
-          linkWidth={2}
-          onNodeClick={handleNodeClick}
-        />
+        <div className="absolute inset-0 z-10">
+          <ForceGraph2D
+            ref={fgRef}
+            graphData={graphData}
+            width={dimensions.width}
+            height={dimensions.height}
+            backgroundColor="#0f172a"
+            enablePointerInteraction={true}
+            enableNodeDrag={true}
+            enableZoomInteraction={true}
+            enablePanInteraction={true}
+            d3VelocityDecay={0.4}
+            nodeColor={(node: GraphNode) => node.color}
+            nodeVal={(node: GraphNode) => node.val}
+            nodeLabel={(node: GraphNode) => node.name}
+            linkColor={() => "#ffffff25"}
+            linkWidth={2}
+            onNodeClick={handleNodeClick}
+            // Ensure graph fits properly within bounds
+            cooldownTicks={100}
+            onEngineStop={handleEngineStop}
+          />
+        </div>
       )}
 
       {/* Empty State */}
       {!loading && !error && websiteSessions.size === 0 && (
-        <div className="absolute inset-0 flex items-center justify-center z-10">
+        <div className="absolute inset-0 flex items-center justify-center z-20">
           <div className="text-white text-center p-4">
             <div className="mb-4">
               <Database className="h-16 w-16 mx-auto mb-4 opacity-50" />
