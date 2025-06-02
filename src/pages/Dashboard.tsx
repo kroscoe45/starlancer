@@ -10,7 +10,15 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Activity, Clock, AlertTriangle, CheckCircle } from "lucide-react";
+import {
+  Activity,
+  Clock,
+  AlertTriangle,
+  CheckCircle,
+  TestTube,
+  Database,
+  Zap,
+} from "lucide-react";
 
 // Quick stats cards component
 function QuickStats() {
@@ -75,6 +83,70 @@ function QuickStats() {
   );
 }
 
+// Development tools info section
+function DevelopmentInfo() {
+  return (
+    <Card className="border-dashed border-2 border-primary/20 bg-primary/5">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <TestTube className="h-5 w-5" />
+          Development Mode Active
+          <Badge variant="secondary">Dev Tools</Badge>
+        </CardTitle>
+        <CardDescription>
+          Mock data generator is available in the sidebar under "Development" to
+          help with frontend development and testing.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="grid gap-3 md:grid-cols-3">
+          <div className="space-y-2">
+            <h4 className="font-medium text-sm flex items-center gap-2">
+              <TestTube className="h-4 w-4" />
+              Mock Data
+            </h4>
+            <p className="text-xs text-muted-foreground">
+              Generate realistic artist website data with 30-70 pages per site.
+              Configurable artist profiles and link structures.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <h4 className="font-medium text-sm flex items-center gap-2">
+              <Zap className="h-4 w-4" />
+              Live Simulation
+            </h4>
+            <p className="text-xs text-muted-foreground">
+              Toggle timing simulation to watch pages being discovered and
+              scraped in real-time in the visualization.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <h4 className="font-medium text-sm flex items-center gap-2">
+              <Database className="h-4 w-4" />
+              Unified Data
+            </h4>
+            <p className="text-xs text-muted-foreground">
+              Both mock and AWS data feed into the same visualization. Session
+              persistence keeps your generated data available.
+            </p>
+          </div>
+        </div>
+
+        <div className="bg-muted/50 rounded-md p-3">
+          <p className="text-xs text-muted-foreground">
+            <strong>How to use:</strong> Expand the "Mock Data" section in the
+            sidebar to generate test data. Use "Generate" for instant data or
+            "Simulate" to watch the scraping process in real-time. Generated
+            data persists in your browser session.
+          </p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export function Dashboard() {
   return (
     <PageTemplate
@@ -85,8 +157,8 @@ export function Dashboard() {
         {/* Quick Stats */}
         <QuickStats />
 
-        {/* Scraping Trigger */}
-        <ScrapingTrigger />
+        {/* Development Tools Info */}
+        <DevelopmentInfo />
 
         {/* Live Scraper Visualization */}
         <Card>
@@ -99,13 +171,17 @@ export function Dashboard() {
             </CardTitle>
             <CardDescription>
               Real-time view of website structure discovery and scraping
-              progress
+              progress. Use the sidebar controls to generate mock data or load
+              from AWS.
             </CardDescription>
           </CardHeader>
           <CardContent>
             <ScraperVisualization />
           </CardContent>
         </Card>
+
+        {/* Scraping Trigger */}
+        <ScrapingTrigger />
 
         {/* Recent Activity */}
         <Card>

@@ -1,9 +1,18 @@
 // src/components/dashboard/ScraperVisualization.tsx
-import { useCallback, useEffect, useState, useRef } from "react";
+import { useCallback, useState, useRef } from "react";
 import ForceGraph2D from "react-force-graph-2d";
-import { ScanCommand } from "@aws-sdk/lib-dynamodb";
+import { useUnifiedDataStore } from "@/hooks/useUnifiedDataStore";
 import { useAWSConfig } from "@/hooks/useAWSConfig";
 import { AWSConfigDialog } from "./AWSConfigDialog";
+import { UnifiedWebsiteData } from "@/lib/mockDataGenerator";
+import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { Database, TestTube, RefreshCw, Info } from "lucide-react";
 
 // Types for scraper data
 interface ScrapedPage {
@@ -24,6 +33,10 @@ interface WebsiteSession {
   startTime: Date;
   status: "active" | "completed" | "paused";
   pages: Map<string, ScrapedPage>;
+  artistName?: string;
+  artMediums?: string[];
+  artThemes?: string[];
+  source: "aws" | "mock";
 }
 
 // Types for force graph data
@@ -47,31 +60,25 @@ interface GraphData {
 }
 
 export function ScraperVisualization() {
-  const [websites, setWebsites] = useState<Map<string, WebsiteSession>>(
-    new Map(),
-  );
   const [selectedWebsite, setSelectedWebsite] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const fgRef = useRef<any>(null);
 
-  // Use the AWS configuration hook
-  const {
-    dynamoClient,
-    isConfigured,
-    error: configError,
-    configure,
-  } = useAWSConfig();
+  // Use unified data store
+  const { websites, loading, error, loadAWSData, refreshData } =
+    useUnifiedDataStore();
 
-  // Transform DynamoDB sitemap data to our WebsiteSession format
-  const transformDynamoData = useCallback(
-    (dynamoItems: any[]): Map<string, WebsiteSession> => {
+  // Use AWS config for configuration dialog
+  const { isConfigured, error: configError, configure } = useAWSConfig();
+
+  // Transform unified data to internal format
+  const transformToWebsiteSessions = useCallback(
+    (unifiedData: UnifiedWebsiteData[]): Map<string, WebsiteSession> => {
       const websiteMap = new Map<string, WebsiteSession>();
 
-      dynamoItems.forEach((item) => {
-        const domain = item.website_domain;
-        const sitemap = item.sitemap || {};
-        const lastUpdated = new Date(item.last_updated * 1000);
+      unifiedData.forEach((websiteData) => {
+        const domain = websiteData.website_domain;
+        const sitemap = websiteData.sitemap || {};
+        const lastUpdated = new Date(websiteData.last_updated * 1000);
 
         // Create pages map from sitemap
         const pagesMap = new Map<string, ScrapedPage>();
@@ -80,22 +87,36 @@ export function ScraperVisualization() {
         const urls = Object.keys(sitemap);
         const homepage =
           urls.find((url) => {
-            const path = new URL(url).pathname;
-            return path === "/" || path === "";
+            try {
+              const path = new URL(url).pathname;
+              return path === "/" || path === "";
+            } catch {
+              return false;
+            }
           }) || urls[0]; // fallback to first URL
 
         // Create ScrapedPage objects from sitemap
         Object.entries(sitemap).forEach(([url, linkedUrls]) => {
           const isHomepage = url === homepage;
-          const urlObj = new URL(url);
+          let title = "Page";
+
+          try {
+            const urlObj = new URL(url);
+            title =
+              urlObj.pathname === "/"
+                ? "Homepage"
+                : urlObj.pathname
+                    .split("/")
+                    .filter((p) => p)
+                    .pop() || "Page";
+          } catch {
+            title = "Page";
+          }
 
           pagesMap.set(url, {
             url,
-            status: "completed", // All DynamoDB data is completed
-            title:
-              urlObj.pathname === "/"
-                ? "Homepage"
-                : urlObj.pathname.split("/").pop() || "Page",
+            status: "completed", // All stored data is completed
+            title,
             isHomepage,
             discoveredAt: lastUpdated,
             completedAt: lastUpdated,
@@ -112,6 +133,10 @@ export function ScraperVisualization() {
           startTime: lastUpdated,
           status: "completed",
           pages: pagesMap,
+          artistName: websiteData.artist_name,
+          artMediums: websiteData.art_mediums,
+          artThemes: websiteData.art_themes,
+          source: websiteData.source,
         };
 
         websiteMap.set(domain, websiteSession);
@@ -122,57 +147,25 @@ export function ScraperVisualization() {
     [],
   );
 
-  // Load data from DynamoDB
-  const loadWebsiteData = useCallback(async () => {
-    if (!dynamoClient) {
-      setError("AWS not configured. Please configure your AWS settings.");
-      return;
-    }
+  // Convert unified data to website sessions
+  const websiteSessions = transformToWebsiteSessions(websites);
 
-    try {
-      setLoading(true);
-      setError(null);
-
-      const command = new ScanCommand({
-        TableName: "website-sitemaps",
-      });
-
-      const response = await dynamoClient.send(command);
-      const items = response.Items || [];
-
-      console.log("Loaded DynamoDB items:", items);
-
-      if (items.length === 0) {
-        setError("No website data found in DynamoDB");
-        return;
-      }
-
-      // Transform and set data
-      const websiteMap = transformDynamoData(items);
-      setWebsites(websiteMap);
-
-      // Auto-select first website
-      const firstWebsite = websiteMap.keys().next().value;
+  // Auto-select first website when data changes
+  useState(() => {
+    if (websiteSessions.size > 0 && !selectedWebsite) {
+      const firstWebsite = websiteSessions.keys().next().value;
       if (firstWebsite) {
         setSelectedWebsite(firstWebsite);
       }
-    } catch (err) {
-      console.error("Error loading website data:", err);
-      setError(err instanceof Error ? err.message : "Failed to load data");
-    } finally {
-      setLoading(false);
+    } else if (websiteSessions.size === 0) {
+      setSelectedWebsite(null);
     }
-  }, [dynamoClient, transformDynamoData]);
-
-  // Load data when AWS client becomes available
-  useEffect(() => {
-    if (dynamoClient && isConfigured) {
-      loadWebsiteData();
-    }
-  }, [dynamoClient, isConfigured, loadWebsiteData]);
+  });
 
   // Get current website data for visualization
-  const currentWebsite = selectedWebsite ? websites.get(selectedWebsite) : null;
+  const currentWebsite = selectedWebsite
+    ? websiteSessions.get(selectedWebsite)
+    : null;
 
   // Status-based colors (professional palette)
   const getStatusColor = useCallback((status: string): string => {
@@ -228,8 +221,22 @@ export function ScraperVisualization() {
     console.log("Clicked node:", node);
   }, []);
 
-  // Combined error from configuration or data loading
-  const displayError = configError || error;
+  // Get data source info
+  const getDataSourceInfo = () => {
+    if (websites.length === 0) return { type: "none", count: 0 };
+
+    const awsCount = websites.filter((w) => w.source === "aws").length;
+    const mockCount = websites.filter((w) => w.source === "mock").length;
+
+    if (awsCount > 0 && mockCount > 0)
+      return { type: "mixed", count: websites.length, awsCount, mockCount };
+    if (awsCount > 0) return { type: "aws", count: awsCount };
+    if (mockCount > 0) return { type: "mock", count: mockCount };
+
+    return { type: "none", count: 0 };
+  };
+
+  const dataSourceInfo = getDataSourceInfo();
 
   return (
     <div className="w-full h-[600px] bg-slate-900 rounded-lg border relative overflow-hidden">
@@ -237,17 +244,19 @@ export function ScraperVisualization() {
       {loading && (
         <div className="absolute inset-0 bg-slate-900/80 flex items-center justify-center z-20">
           <div className="text-white text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto mb-2"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto mb-2">
+              <RefreshCw className="h-8 w-8" />
+            </div>
             <p>Loading website data...</p>
           </div>
         </div>
       )}
 
       {/* Error State */}
-      {displayError && (
+      {error && (
         <div className="absolute inset-0 bg-slate-900/80 flex items-center justify-center z-20">
           <div className="text-white text-center p-4">
-            <p className="text-red-400 mb-4">Error: {displayError}</p>
+            <p className="text-red-400 mb-4">Error: {error}</p>
             <div className="flex gap-2 justify-center">
               {!isConfigured && (
                 <AWSConfigDialog
@@ -257,12 +266,10 @@ export function ScraperVisualization() {
                 />
               )}
               {isConfigured && (
-                <button
-                  onClick={loadWebsiteData}
-                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-                >
-                  Retry
-                </button>
+                <Button onClick={loadAWSData} className="gap-2">
+                  <RefreshCw className="h-4 w-4" />
+                  Retry AWS
+                </Button>
               )}
             </div>
           </div>
@@ -278,38 +285,108 @@ export function ScraperVisualization() {
           onConfigure={configure}
         />
 
+        {/* Load AWS Data Button */}
+        <Button
+          onClick={loadAWSData}
+          disabled={loading || !isConfigured}
+          size="sm"
+          variant="outline"
+          className="bg-black/50 border-white/20 text-white hover:bg-black/70 gap-2"
+        >
+          <Database className="h-4 w-4" />
+          Load AWS Data
+        </Button>
+
         {/* Website Selector */}
         <select
           value={selectedWebsite || ""}
           onChange={(e) => setSelectedWebsite(e.target.value)}
           className="bg-black/50 text-white border border-white/20 rounded px-3 py-1 text-sm backdrop-blur-sm"
-          disabled={loading || !isConfigured}
+          disabled={loading || websiteSessions.size === 0}
         >
           <option value="">Select website...</option>
-          {Array.from(websites.entries()).map(([id, website]) => (
+          {Array.from(websiteSessions.entries()).map(([id, website]) => (
             <option key={id} value={id}>
-              {website.domain}
+              {website.domain} {website.source === "mock" ? "(Mock)" : "(AWS)"}
             </option>
           ))}
         </select>
 
         {/* Refresh Button */}
-        <button
-          onClick={loadWebsiteData}
-          disabled={loading || !isConfigured}
-          className="px-3 py-1 bg-black/50 text-white border border-white/20 rounded text-sm backdrop-blur-sm hover:bg-black/70 disabled:opacity-50"
+        <Button
+          onClick={refreshData}
+          disabled={loading}
+          size="sm"
+          variant="outline"
+          className="bg-black/50 border-white/20 text-white hover:bg-black/70"
         >
-          ↻
-        </button>
+          <RefreshCw className="h-4 w-4" />
+        </Button>
+      </div>
+
+      {/* Data Source Info */}
+      <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="flex items-center gap-2 bg-black/50 text-white rounded px-2 py-1 text-sm backdrop-blur-sm">
+                {dataSourceInfo.type === "aws" && (
+                  <Database className="h-4 w-4" />
+                )}
+                {dataSourceInfo.type === "mock" && (
+                  <TestTube className="h-4 w-4" />
+                )}
+                {dataSourceInfo.type === "mixed" && (
+                  <Info className="h-4 w-4" />
+                )}
+                {dataSourceInfo.type === "none" && <Info className="h-4 w-4" />}
+
+                <span>
+                  {dataSourceInfo.type === "aws" &&
+                    `AWS Data (${dataSourceInfo.count})`}
+                  {dataSourceInfo.type === "mock" &&
+                    `Mock Data (${dataSourceInfo.count})`}
+                  {dataSourceInfo.type === "mixed" &&
+                    `Mixed (${dataSourceInfo.awsCount} AWS, ${dataSourceInfo.mockCount} Mock)`}
+                  {dataSourceInfo.type === "none" && "No Data"}
+                </span>
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>
+                {dataSourceInfo.type === "aws" &&
+                  "Data loaded from AWS DynamoDB"}
+                {dataSourceInfo.type === "mock" &&
+                  "Generated mock data for development"}
+                {dataSourceInfo.type === "mixed" && "Mix of AWS and mock data"}
+                {dataSourceInfo.type === "none" &&
+                  "Load AWS data or generate mock data to begin"}
+              </p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       </div>
 
       {/* Stats Overlay */}
-      <div className="absolute top-4 right-4 z-10 bg-black/50 text-white rounded p-3 text-sm backdrop-blur-sm">
+      <div className="absolute bottom-4 right-4 z-10 bg-black/50 text-white rounded p-3 text-sm backdrop-blur-sm">
         {currentWebsite && (
           <div className="space-y-1">
             <div>Domain: {currentWebsite.domain}</div>
             <div>Pages: {currentWebsite.pages.size}</div>
             <div>Status: {currentWebsite.status}</div>
+            {currentWebsite.artistName && (
+              <div>Artist: {currentWebsite.artistName}</div>
+            )}
+            {currentWebsite.artMediums &&
+              currentWebsite.artMediums.length > 0 && (
+                <div>
+                  Mediums: {currentWebsite.artMediums.slice(0, 2).join(", ")}
+                  {currentWebsite.artMediums.length > 2 ? "..." : ""}
+                </div>
+              )}
+            <div className="text-xs opacity-75">
+              Source: {currentWebsite.source.toUpperCase()}
+            </div>
             <div className="text-xs opacity-75">
               Updated: {currentWebsite.startTime.toLocaleDateString()}
             </div>
@@ -324,16 +401,24 @@ export function ScraperVisualization() {
             <div className="w-3 h-3 rounded-full bg-green-400"></div>
             <span>Completed</span>
           </div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded-full bg-blue-400"></div>
+            <span>Scraping</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded-full bg-gray-400"></div>
+            <span>Pending</span>
+          </div>
           <div className="text-xs opacity-75 mt-2">
-            {isConfigured
-              ? "Real data from DynamoDB"
-              : "Configure AWS to load data"}
+            {dataSourceInfo.count > 0
+              ? `${dataSourceInfo.count} website${dataSourceInfo.count !== 1 ? "s" : ""} loaded`
+              : "No data loaded"}
           </div>
         </div>
       </div>
 
       {/* Force Graph */}
-      {!loading && !displayError && isConfigured && (
+      {!loading && !error && websiteSessions.size > 0 && (
         <ForceGraph2D
           ref={fgRef}
           graphData={graphData}
@@ -352,6 +437,25 @@ export function ScraperVisualization() {
           linkWidth={2}
           onNodeClick={handleNodeClick}
         />
+      )}
+
+      {/* Empty State */}
+      {!loading && !error && websiteSessions.size === 0 && (
+        <div className="absolute inset-0 flex items-center justify-center z-10">
+          <div className="text-white text-center p-4">
+            <div className="mb-4">
+              <Database className="h-16 w-16 mx-auto mb-4 opacity-50" />
+            </div>
+            <h3 className="text-lg font-semibold mb-2">No Data Available</h3>
+            <p className="text-sm text-white/70 mb-4">
+              Load AWS data or generate mock data to visualize website
+              structures
+            </p>
+            <div className="text-xs text-white/50">
+              Use the sidebar or controls above to get started
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
