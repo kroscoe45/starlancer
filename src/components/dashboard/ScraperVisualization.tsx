@@ -1,6 +1,10 @@
 // src/components/dashboard/ScraperVisualization.tsx
 import { useCallback, useState, useRef, useEffect, useMemo } from "react";
-import ForceGraph2D from "react-force-graph-2d";
+import ForceGraph2D, {
+  ForceGraphMethods,
+  NodeObject,
+  LinkObject,
+} from "react-force-graph-2d";
 import { useUnifiedDataStore } from "@/hooks/useUnifiedDataStore";
 import { useAWSConfig } from "@/hooks/useAWSConfig";
 import { AWSConfigDialog } from "./AWSConfigDialog";
@@ -69,20 +73,14 @@ export function ScraperVisualization() {
   const [selectedWebsite, setSelectedWebsite] = useState<string | null>(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const containerRef = useRef<HTMLDivElement>(null);
-  const fgRef = useRef<any>(null);
+  const fgRef = useRef<ForceGraphMethods<NodeObject<GraphNode>, LinkObject<GraphNode, GraphLink>>>(undefined);
 
   // Use unified data store
   const { websites, loading, error, loadAWSData, refreshData } =
     useUnifiedDataStore();
 
   // Use AWS config for configuration dialog
-  const {
-    isConfigured,
-    error: configError,
-    configure,
-    testConnection,
-    getConnectionStatus,
-  } = useAWSConfig();
+  const { isConfigured } = useAWSConfig();
 
   // Log component mount
   useEffect(() => {
@@ -90,7 +88,7 @@ export function ScraperVisualization() {
       hasAWSConfig: isConfigured,
       websiteCount: websites.length,
     });
-  }, []);
+  }, [isConfigured, websites.length]);
 
   // Set initial dimensions
   useEffect(() => {
@@ -264,7 +262,7 @@ export function ScraperVisualization() {
 
       return websiteMap;
     },
-    [], // No dependencies to prevent unnecessary recalculations
+    [dashboardLogger],
   );
 
   // Convert unified data to website sessions (memoized)
@@ -389,7 +387,7 @@ export function ScraperVisualization() {
       e: React.MouseEvent,
       action: () => void,
       actionName: string,
-      actionData?: any,
+      actionData?: Record<string, unknown>,
     ) => {
       e.preventDefault();
       e.stopPropagation();
@@ -547,15 +545,7 @@ export function ScraperVisualization() {
           <div className="text-white text-center p-4">
             <p className="text-red-400 mb-4">Error: {error}</p>
             <div className="flex gap-2 justify-center">
-              {!isConfigured && (
-                <AWSConfigDialog
-                  isConfigured={isConfigured}
-                  error={configError}
-                  onConfigure={configure}
-                  testConnection={testConnection}
-                  getConnectionStatus={getConnectionStatus}
-                />
-              )}
+              {!isConfigured && <AWSConfigDialog />}
               {isConfigured && (
                 <Button
                   onClick={(e) =>
@@ -581,13 +571,7 @@ export function ScraperVisualization() {
       <div className="absolute top-4 left-4 z-40 flex gap-2 pointer-events-auto">
         {/* AWS Configuration */}
         <div onClick={(e) => e.stopPropagation()}>
-          <AWSConfigDialog
-            isConfigured={isConfigured}
-            error={configError}
-            onConfigure={configure}
-            testConnection={testConnection}
-            getConnectionStatus={getConnectionStatus}
-          />
+          <AWSConfigDialog triggerClassName="bg-black/50 border-white/20 text-white hover:bg-black/70" />
         </div>
 
         {/* Load AWS Data Button */}
