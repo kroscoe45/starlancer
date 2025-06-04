@@ -5,7 +5,7 @@ import ForceGraph2D, {
   NodeObject,
   LinkObject,
 } from "react-force-graph-2d";
-import { useUnifiedDataStore } from "@/hooks/useUnifiedDataStore";
+import { useUnifiedDataStoreContext } from "@/components/providers/UnifiedDataStoreProvider";
 import { useAWSConfig } from "@/hooks/useAWSConfig";
 import { AWSConfigDialog } from "./AWSConfigDialog";
 import { UnifiedWebsiteData } from "@/lib/mockDataGenerator";
@@ -77,7 +77,7 @@ export function ScraperVisualization() {
 
   // Use unified data store
   const { websites, loading, error, loadAWSData, refreshData } =
-    useUnifiedDataStore();
+    useUnifiedDataStoreContext();
 
   // Use AWS config for configuration dialog
   const { isConfigured } = useAWSConfig();

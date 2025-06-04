@@ -11,33 +11,11 @@ import {
 } from "@/components/ui/tooltip";
 import { useTheme } from "../ThemeProvider";
 import { Moon, Sun } from "lucide-react";
-import { useCallback, useEffect } from "react";
-import {
-  logClick,
-  logConfigChange,
-  dashboardLogger,
-  InteractionType,
-} from "@/lib/logger";
+import { useCallback } from "react";
 
 export function Header() {
   const { theme, toggleTheme } = useTheme();
-
-  // Mock AWS status - replace with real data
-  const awsStatus = "healthy"; // 'healthy' | 'warning' | 'error'
-
-  // Log component mount and theme on load
-  useEffect(() => {
-    dashboardLogger.logInteraction(
-      "Header",
-      "component_mounted",
-      InteractionType.NAVIGATION,
-      {
-        currentTheme: theme,
-        awsStatus,
-        timestamp: new Date().toISOString(),
-      },
-    );
-  }, [theme, awsStatus]);
+  const awsStatus = "healthy";
 
   const getStatusConfig = (status: string) => {
     switch (status) {
@@ -66,44 +44,13 @@ export function Header() {
 
   const statusConfig = getStatusConfig(awsStatus);
 
-  // Handle theme toggle with logging
   const handleThemeToggle = useCallback(() => {
-    const oldTheme = theme;
-
-    logClick("Header", "theme_toggle_button", {
-      currentTheme: oldTheme,
-      willToggleTo: oldTheme === "light" ? "dark" : "light",
-    });
-
     toggleTheme();
+  }, [toggleTheme]);
 
-    // Log the actual change after toggle
-    setTimeout(() => {
-      logConfigChange(
-        "Header",
-        "theme",
-        oldTheme === "light" ? "dark" : "light",
-        oldTheme,
-      );
-    }, 0);
-  }, [theme, toggleTheme]);
-
-  // Handle sidebar trigger with logging
-  const handleSidebarTrigger = useCallback(() => {
-    logClick("Header", "sidebar_trigger", {
-      currentTheme: theme,
-      timestamp: new Date().toISOString(),
-    });
-  }, [theme]);
-
-  // Handle status badge click (for potential future functionality)
   const handleStatusBadgeClick = useCallback(() => {
-    logClick("Header", "status_badge_clicked", {
-      status: awsStatus,
-      statusText: statusConfig.text,
-      variant: statusConfig.variant,
-    });
-  }, [awsStatus, statusConfig]);
+    console.log("settings clicked");
+  }, []);
 
   return (
     <div className="sticky top-4 z-50 px-4">
@@ -121,7 +68,6 @@ export function Header() {
           </Tooltip>
         </TooltipProvider>
         <Separator orientation="vertical" className="mr-2 h-4" />
-
         <div className="flex flex-1 items-center justify-between">
           <div className="flex items-center gap-2">
             <h1

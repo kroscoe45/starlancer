@@ -34,7 +34,6 @@ export function ScrapingTrigger({ apiEndpoint, apiKey }: ScrapingTriggerProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
     if (!url.trim()) {
       setLastResult({
         success: false,
@@ -144,7 +143,6 @@ export function ScrapingTrigger({ apiEndpoint, apiKey }: ScrapingTriggerProps) {
             />
           </div>
         </div>
-
         {/* URL Input Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">

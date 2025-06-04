@@ -1,13 +1,16 @@
-// src/components/layout/PageTemplate.tsx
 import { ReactNode } from "react";
 
-interface PageTemplateProps {
+export interface PageTemplateProps {
   title: string;
   description?: string;
   children: ReactNode;
 }
 
-export function PageTemplate({ title, description, children }: PageTemplateProps) {
+export function PageTemplate({
+  title,
+  description,
+  children,
+}: PageTemplateProps) {
   return (
     <div className="space-y-6">
       <div>

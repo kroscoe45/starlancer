@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { MockDataSidebarControls } from "@/components/dashboard/MockDataSidebarControls";
-import { useUnifiedDataStore } from "@/hooks/useUnifiedDataStore";
+import { useUnifiedDataStoreContext } from "@/components/providers/UnifiedDataStoreProvider";
 
 const mainNavItems = [
   {
@@ -64,7 +64,7 @@ const monitoringItems = [
 
 export function AppSidebar() {
   const location = useLocation();
-  const { setMockData } = useUnifiedDataStore();
+  const { setMockData } = useUnifiedDataStoreContext();
 
   return (
     <Sidebar variant="sidebar" collapsible="offcanvas">

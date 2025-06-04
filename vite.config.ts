@@ -31,9 +31,13 @@ export default defineConfig({
   define: {
     __DEV__: true,
   },
+
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
   },
+
+  // Environment variable validation for Cognito configuration
+  envPrefix: ["VITE_"],
 });

@@ -1,6 +1,5 @@
-// src/components/layout/Layout.tsx
-import { Outlet } from "react-router-dom";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
+import { Outlet } from "react-router-dom";
 import { AppSidebar } from "./AppSidebar";
 import { Header } from "./Header";
 
@@ -8,11 +7,11 @@ export function Layout() {
   return (
     <SidebarProvider defaultOpen={true}>
       <AppSidebar />
-      <SidebarInset>
-        {/* Header floats above content */}
-        <Header />
-        {/* Main content with top padding to account for floating header */}
-        <main className="flex-1 overflow-auto p-4 pt-20 transition-all duration-200 ease-linear">
+      <SidebarInset className="transition-all duration-200 ease-linear">
+        <div className="sticky top-0 z-50 backdrop-blur-md bg-background/80 border-b border-border/40">
+          <Header />
+        </div>
+        <main className="flex-1 p-4 overflow-auto">
           <Outlet />
         </main>
       </SidebarInset>
