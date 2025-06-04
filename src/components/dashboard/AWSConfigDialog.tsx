@@ -25,7 +25,6 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { useAWSConfig } from "@/hooks/useAWSConfig";
-import { logClick, logDataOperation } from "@/lib/logger";
 
 interface AWSConfigDialogProps {
   triggerClassName?: string;
@@ -60,22 +59,16 @@ export function AWSConfigDialog({
     try {
       const status = await getConnectionStatus();
       setConnectionStatus(status);
-    } catch (err) {
+    } catch {
       setConnectionStatus("Error checking status");
     }
   };
 
   const handleTestConnection = async () => {
     setIsTestingConnection(true);
-    logDataOperation("AWSConfigDialog", "test_connection_manual");
-
     try {
       const isConnected = await testConnection();
       setConnectionStatus(isConnected ? "Connected" : "Connection failed");
-
-      logDataOperation("AWSConfigDialog", "test_connection_result", {
-        success: isConnected,
-      });
     } catch (err) {
       setConnectionStatus("Test failed");
       console.error("Connection test failed:", err);
@@ -85,7 +78,6 @@ export function AWSConfigDialog({
   };
 
   const handleRefreshConnection = async () => {
-    logDataOperation("AWSConfigDialog", "refresh_connection_manual");
     await refreshConnection();
     await updateConnectionStatus();
   };
@@ -123,12 +115,6 @@ export function AWSConfigDialog({
                 variant="outline"
                 size="sm"
                 className={`gap-2 ${triggerClassName}`}
-                onClick={() => {
-                  logClick("AWSConfigDialog", "open_dialog", {
-                    isConfigured,
-                    hasError: !!error,
-                  });
-                }}
               >
                 <Database className="h-4 w-4" />
                 AWS
@@ -300,7 +286,6 @@ export function AWSConfigDialog({
               size="sm"
               className="text-xs gap-1 p-2 h-auto"
               onClick={() => {
-                logClick("AWSConfigDialog", "open_cognito_docs");
                 window.open(
                   "https://docs.aws.amazon.com/cognito/latest/developerguide/identity-pools.html",
                   "_blank",
