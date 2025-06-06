@@ -12,6 +12,7 @@ import {
   AlertTriangle,
   CheckCircle,
 } from "lucide-react";
+import { Visualization3D } from "@/components/dashboard/Visualization3D";
 
 // Quick stats cards component
 function QuickStats() {
@@ -86,6 +87,9 @@ export function Dashboard() {
       
       {/* Quick Stats */}
       <QuickStats />
+
+      {/* 3D Visualization */}
+      <Visualization3D />
 
       {/* Recent Activity */}
       <Card>
