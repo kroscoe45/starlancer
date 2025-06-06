@@ -23,8 +23,6 @@ import {
   Zap,
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
-import { MockDataSidebarControls } from "@/components/dashboard/MockDataSidebarControls";
-import { useUnifiedDataStoreContext } from "@/components/providers/UnifiedDataStoreProvider";
 
 const mainNavItems = [
   {
@@ -64,7 +62,6 @@ const monitoringItems = [
 
 export function AppSidebar() {
   const location = useLocation();
-  const { setMockData } = useUnifiedDataStoreContext();
 
   return (
     <Sidebar variant="sidebar" collapsible="offcanvas">
@@ -131,24 +128,6 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        <SidebarSeparator />
-
-        <SidebarGroup>
-          <SidebarGroupLabel>Development</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <MockDataSidebarControls
-                  onDataGenerated={setMockData}
-                  onProgressUpdate={(data, _isComplete) => {
-                    setMockData(data);
-                    // You could add additional logic here for progress updates
-                  }}
-                />
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
       </SidebarContent>
 
       <SidebarFooter>

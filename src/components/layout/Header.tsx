@@ -48,9 +48,6 @@ export function Header() {
     toggleTheme();
   }, [toggleTheme]);
 
-  const handleStatusBadgeClick = useCallback(() => {
-    console.log("settings clicked");
-  }, []);
 
   return (
     <div className="sticky top-4 z-50 px-4">
@@ -58,9 +55,7 @@ export function Header() {
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <div onClick={handleSidebarTrigger}>
-                <SidebarTrigger className="-ml-1" />
-              </div>
+              <SidebarTrigger className="-ml-1" />
             </TooltipTrigger>
             <TooltipContent>
               <p>Toggle Sidebar (Ctrl+B)</p>
@@ -70,22 +65,12 @@ export function Header() {
         <Separator orientation="vertical" className="mr-2 h-4" />
         <div className="flex flex-1 items-center justify-between">
           <div className="flex items-center gap-2">
-            <h1
-              className="text-lg font-semibold cursor-pointer"
-              onClick={() =>
-                logClick("Header", "title_clicked", { currentTheme: theme })
-              }
-            >
+            <h1 className="text-lg font-semibold">
               AWS Scraper Dashboard
             </h1>
-            <div onClick={handleStatusBadgeClick}>
-              <Badge
-                variant={statusConfig.variant}
-                className="cursor-pointer hover:opacity-80 transition-opacity"
-              >
-                {statusConfig.text}
-              </Badge>
-            </div>
+            <Badge variant={statusConfig.variant}>
+              {statusConfig.text}
+            </Badge>
           </div>
 
           <div className="flex items-center gap-2">
