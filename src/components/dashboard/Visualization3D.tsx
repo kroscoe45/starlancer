@@ -26,7 +26,6 @@ import {
   Move3D,
   Camera,
   ZoomIn,
-  RotateCcw,
 } from "lucide-react";
 import * as THREE from "three";
 
@@ -481,8 +480,7 @@ export function Visualization3D() {
               linkWidth={(link: GraphLink) => link.width}
               linkOpacity={settings.linkOpacity}
               onNodeClick={handleNodeClick}
-              d3Force="charge"
-              d3ForceStrength={settings.forceStrength}
+              d3VelocityDecay={0.4}
               cooldownTicks={100}
               nodeThreeObject={(node: GraphNode) => {
                 const geometry = new THREE.SphereGeometry(node.val);

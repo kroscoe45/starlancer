@@ -1,7 +1,7 @@
 // src/components/dashboard/ScraperVisualization.tsx
 import { useAWSConfig } from "@/hooks/useAWSConfig";
 import { Button } from "@/components/ui/button";
-import { Database, RefreshCw } from "lucide-react";
+import { Database } from "lucide-react";
 
 export function ScraperVisualization() {
   const { isConfigured } = useAWSConfig();

@@ -168,7 +168,8 @@ export function useAWSConfig(): UseAWSConfigReturn {
       const isConnected = await testConnection();
       return isConnected ? "Connected" : "Connection failed";
     } catch (err) {
-      return `Error: ${parseAWSError(err)}`;
+      const error = err instanceof Error ? err : new Error(String(err));
+      return `Error: ${parseAWSError(error)}`;
     }
   };
 
